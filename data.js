@@ -405,7 +405,7 @@ const smsTemplates = {
     payment: 'Hi {name}, we couldn\'t process your membership payment. Please update your card to keep your access active.'
 };
 
-// Engineers Data
+// Engineers Data with CRM tracking
 let engineers = [
     {
         id: 1,
@@ -428,6 +428,24 @@ let engineers = [
             saturday: { start: '12:00', end: '20:00' },
             sunday: null
         },
+        // CRM Performance Tracking
+        stats: {
+            totalSessions: 45,
+            totalHours: 312,
+            totalEarnings: 23400,
+            averageRating: 4.8,
+            acceptanceRate: 95,
+            declinedSessions: 3
+        },
+        // Monthly tracking
+        monthlyStats: {
+            '2026-02': { sessions: 8, hours: 56, earnings: 4200 },
+            '2026-01': { sessions: 12, hours: 84, earnings: 6300 }
+        },
+        notes: [
+            { id: 1, text: 'Excellent with hip-hop artists. Very professional.', author: 'Joi Coleman', createdAt: '2026-02-01T10:00:00.000Z' },
+            { id: 2, text: 'Prefers late-night sessions with R&B artists.', author: 'Joi Coleman', createdAt: '2026-02-05T14:00:00.000Z' }
+        ],
         createdAt: '2026-02-01T00:00:00.000Z',
         updatedAt: '2026-02-01T00:00:00.000Z'
     },
@@ -452,6 +470,21 @@ let engineers = [
             saturday: { start: '14:00', end: '02:00' },
             sunday: null
         },
+        stats: {
+            totalSessions: 28,
+            totalHours: 196,
+            totalEarnings: 12740,
+            averageRating: 4.9,
+            acceptanceRate: 98,
+            declinedSessions: 1
+        },
+        monthlyStats: {
+            '2026-02': { sessions: 5, hours: 35, earnings: 2275 },
+            '2026-01': { sessions: 8, hours: 56, earnings: 3640 }
+        },
+        notes: [
+            { id: 1, text: 'Great with acoustic and live recording sessions.', author: 'Joi Coleman', createdAt: '2026-02-02T11:00:00.000Z' }
+        ],
         createdAt: '2026-02-01T00:00:00.000Z',
         updatedAt: '2026-02-01T00:00:00.000Z'
     },
@@ -476,6 +509,21 @@ let engineers = [
             saturday: { start: '10:00', end: '18:00' },
             sunday: { start: '12:00', end: '20:00' }
         },
+        stats: {
+            totalSessions: 18,
+            totalHours: 108,
+            totalEarnings: 6480,
+            averageRating: 4.6,
+            acceptanceRate: 90,
+            declinedSessions: 2
+        },
+        monthlyStats: {
+            '2026-02': { sessions: 4, hours: 24, earnings: 1440 },
+            '2026-01': { sessions: 6, hours: 36, earnings: 2160 }
+        },
+        notes: [
+            { id: 1, text: 'Producer background - great for beat-focused sessions.', author: 'Joi Coleman', createdAt: '2026-02-03T09:00:00.000Z' }
+        ],
         createdAt: '2026-02-01T00:00:00.000Z',
         updatedAt: '2026-02-01T00:00:00.000Z'
     }

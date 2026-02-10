@@ -853,45 +853,393 @@ window.addEventListener('torch-square', (event) => {
 });
 
 // ============================================
-// ENGINEER MANAGEMENT (Admin)
+// ENGINEER CRM (Admin)
 // ============================================
 
-function renderEngineersTable() {
-    const tbody = document.getElementById('engineers-tbody');
-    if (!tbody) return;
+let currentEngineerView = 'cards';
+let currentViewingEngineerId = null;
 
-    // Update stats
+function renderEngineersTable() {
+    // Render both views
+    renderEngineersCRM();
+}
+
+function renderEngineersCRM() {
+    // Update CRM stats
+    updateEngineerCRMStats();
+
+    // Render cards view
+    renderEngineerCardsView();
+
+    // Render table view
+    renderEngineerTableView();
+}
+
+function updateEngineerCRMStats() {
     const activeEngineers = engineers.filter(e => e.status === 'Active').length;
     document.getElementById('active-engineers-count').textContent = activeEngineers;
 
-    const today = new Date().toISOString().split('T')[0];
-    const sessionsToday = bookings.filter(b => b.date === today && b.engineerId).length;
-    document.getElementById('engineer-sessions-today').textContent = sessionsToday;
+    // Calculate this month's stats
+    const currentMonth = new Date().toISOString().slice(0, 7); // e.g., "2026-02"
 
-    const pendingRequests = bookings.filter(b =>
-        b.engineerStatus === 'assigned' || b.engineerStatus === 'requested'
-    ).length;
-    document.getElementById('pending-engineer-requests').textContent = pendingRequests;
+    let totalMonthSessions = 0;
+    let totalMonthHours = 0;
+    let totalMonthPayroll = 0;
 
-    tbody.innerHTML = engineers.map(e => `
-        <tr>
-            <td>
-                <div style="display: flex; flex-direction: column;">
-                    <strong>${e.name}</strong>
-                    <small style="color: var(--text-secondary)">${e.email}</small>
-                </div>
-            </td>
-            <td><span class="role-badge ${e.role === 'Lead Engineer' ? 'lead' : 'standard'}">${e.role}</span></td>
-            <td>${e.specialties.join(', ')}</td>
-            <td><span class="status-badge ${e.status.toLowerCase()}">${e.status}</span></td>
-            <td>$${e.rate}/hr</td>
-            <td>
-                <button class="action-btn" onclick="viewEngineer(${e.id})">View</button>
-                <button class="action-btn" onclick="editEngineer(${e.id})">Edit</button>
-            </td>
-        </tr>
-    `).join('');
+    engineers.forEach(e => {
+        if (e.monthlyStats && e.monthlyStats[currentMonth]) {
+            totalMonthSessions += e.monthlyStats[currentMonth].sessions || 0;
+            totalMonthHours += e.monthlyStats[currentMonth].hours || 0;
+            totalMonthPayroll += e.monthlyStats[currentMonth].earnings || 0;
+        }
+    });
+
+    document.getElementById('engineer-sessions-month').textContent = totalMonthSessions;
+    document.getElementById('engineer-hours-month').textContent = totalMonthHours;
+    document.getElementById('engineer-payroll-month').textContent = '$' + totalMonthPayroll.toLocaleString();
 }
+
+function renderEngineerCardsView() {
+    const container = document.getElementById('engineers-cards-view');
+    if (!container) return;
+
+    container.innerHTML = engineers.map(e => {
+        const initials = e.name.split(' ').map(n => n[0]).join('');
+        const currentMonth = new Date().toISOString().slice(0, 7);
+        const monthStats = e.monthlyStats && e.monthlyStats[currentMonth] ? e.monthlyStats[currentMonth] : { sessions: 0, hours: 0, earnings: 0 };
+        const stats = e.stats || { totalSessions: 0, totalHours: 0, totalEarnings: 0, averageRating: 0 };
+
+        return `
+            <div class="engineer-card" data-id="${e.id}" data-name="${e.name.toLowerCase()}" data-role="${e.role}" data-status="${e.status}">
+                <div class="engineer-card-header">
+                    <div class="engineer-avatar">${initials}</div>
+                    <div class="engineer-card-info">
+                        <h4>${e.name}</h4>
+                        <p class="engineer-email">${e.email}</p>
+                        <span class="role-badge ${e.role === 'Lead Engineer' ? 'lead' : 'standard'}">${e.role}</span>
+                        <span class="status-badge ${e.status.toLowerCase()}" style="margin-left: 8px;">${e.status}</span>
+                    </div>
+                </div>
+                <div class="engineer-card-stats">
+                    <div class="engineer-stat">
+                        <span class="stat-value">${stats.totalSessions}</span>
+                        <span class="stat-label">Sessions</span>
+                    </div>
+                    <div class="engineer-stat">
+                        <span class="stat-value">${stats.totalHours}</span>
+                        <span class="stat-label">Hours</span>
+                    </div>
+                    <div class="engineer-stat">
+                        <span class="stat-value">${stats.averageRating.toFixed(1)}</span>
+                        <span class="stat-label">Rating</span>
+                    </div>
+                    <div class="engineer-stat">
+                        <span class="stat-value">$${e.rate}</span>
+                        <span class="stat-label">Per Hour</span>
+                    </div>
+                </div>
+                <div class="engineer-card-specialties">
+                    ${e.specialties.map(s => `<span class="specialty-tag">${s}</span>`).join('')}
+                </div>
+                <div class="engineer-card-actions">
+                    <button class="btn secondary" onclick="openEngineerProfile(${e.id})">View Profile</button>
+                    <button class="btn primary" onclick="editEngineer(${e.id})">Edit</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderEngineerTableView() {
+    const tbody = document.getElementById('engineers-tbody');
+    if (!tbody) return;
+
+    const currentMonth = new Date().toISOString().slice(0, 7);
+
+    tbody.innerHTML = engineers.map(e => {
+        const stats = e.stats || { totalSessions: 0, averageRating: 0 };
+        const monthStats = e.monthlyStats && e.monthlyStats[currentMonth] ? e.monthlyStats[currentMonth] : { earnings: 0 };
+
+        return `
+            <tr data-id="${e.id}" data-name="${e.name.toLowerCase()}" data-role="${e.role}" data-status="${e.status}">
+                <td>
+                    <div style="display: flex; flex-direction: column;">
+                        <strong>${e.name}</strong>
+                        <small style="color: var(--text-secondary)">${e.email}</small>
+                    </div>
+                </td>
+                <td><span class="role-badge ${e.role === 'Lead Engineer' ? 'lead' : 'standard'}">${e.role}</span></td>
+                <td>${e.specialties.join(', ')}</td>
+                <td>${stats.totalSessions}</td>
+                <td>
+                    <span class="star-rating">${'★'.repeat(Math.round(stats.averageRating))}<span class="empty">${'★'.repeat(5 - Math.round(stats.averageRating))}</span></span>
+                    <small>(${stats.averageRating.toFixed(1)})</small>
+                </td>
+                <td>$${monthStats.earnings.toLocaleString()}</td>
+                <td><span class="status-badge ${e.status.toLowerCase()}">${e.status}</span></td>
+                <td>
+                    <button class="action-btn" onclick="openEngineerProfile(${e.id})">View</button>
+                    <button class="action-btn" onclick="editEngineer(${e.id})">Edit</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function switchEngineerView(view) {
+    currentEngineerView = view;
+    document.querySelectorAll('.engineer-crm-toolbar .view-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+
+    if (view === 'cards') {
+        document.getElementById('engineers-cards-view').style.display = 'grid';
+        document.getElementById('engineers-table-view').style.display = 'none';
+    } else {
+        document.getElementById('engineers-cards-view').style.display = 'none';
+        document.getElementById('engineers-table-view').style.display = 'block';
+    }
+}
+
+function filterEngineersCRM() {
+    const search = document.getElementById('engineer-search').value.toLowerCase();
+    const roleFilter = document.getElementById('engineer-role-filter').value;
+    const statusFilter = document.getElementById('engineer-status-filter').value;
+
+    // Filter cards
+    document.querySelectorAll('.engineer-card').forEach(card => {
+        const name = card.dataset.name;
+        const role = card.dataset.role;
+        const status = card.dataset.status;
+
+        const matchesSearch = name.includes(search);
+        const matchesRole = roleFilter === 'all' || role === roleFilter;
+        const matchesStatus = statusFilter === 'all' || status === statusFilter;
+
+        card.style.display = matchesSearch && matchesRole && matchesStatus ? '' : 'none';
+    });
+
+    // Filter table rows
+    document.querySelectorAll('#engineers-tbody tr').forEach(row => {
+        const name = row.dataset.name;
+        const role = row.dataset.role;
+        const status = row.dataset.status;
+
+        const matchesSearch = name.includes(search);
+        const matchesRole = roleFilter === 'all' || role === roleFilter;
+        const matchesStatus = statusFilter === 'all' || status === statusFilter;
+
+        row.style.display = matchesSearch && matchesRole && matchesStatus ? '' : 'none';
+    });
+}
+
+// Engineer Profile Modal
+function openEngineerProfile(engineerId) {
+    const engineer = engineers.find(e => e.id === engineerId);
+    if (!engineer) return;
+
+    currentViewingEngineerId = engineerId;
+    const stats = engineer.stats || { totalSessions: 0, totalHours: 0, totalEarnings: 0, averageRating: 0 };
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const lastMonth = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7);
+    const monthStats = engineer.monthlyStats && engineer.monthlyStats[currentMonth] ? engineer.monthlyStats[currentMonth] : { sessions: 0, hours: 0, earnings: 0 };
+    const lastMonthStats = engineer.monthlyStats && engineer.monthlyStats[lastMonth] ? engineer.monthlyStats[lastMonth] : { sessions: 0, hours: 0, earnings: 0 };
+
+    // Header
+    const initials = engineer.name.split(' ').map(n => n[0]).join('');
+    document.getElementById('profile-avatar').textContent = initials;
+    document.getElementById('profile-name').textContent = engineer.name;
+    document.getElementById('profile-role').textContent = engineer.role;
+    document.getElementById('profile-role').className = `role-badge ${engineer.role === 'Lead Engineer' ? 'lead' : 'standard'}`;
+    document.getElementById('profile-email').textContent = engineer.email;
+    document.getElementById('profile-phone').textContent = engineer.phone;
+
+    // Stats
+    document.getElementById('profile-total-sessions').textContent = stats.totalSessions;
+    document.getElementById('profile-total-hours').textContent = stats.totalHours;
+    document.getElementById('profile-avg-rating').textContent = stats.averageRating.toFixed(1);
+    document.getElementById('profile-total-earnings').textContent = '$' + stats.totalEarnings.toLocaleString();
+
+    // Overview tab
+    document.getElementById('profile-bio').textContent = engineer.bio || 'No bio available.';
+    document.getElementById('profile-specialties').innerHTML = engineer.specialties.map(s =>
+        `<span class="specialty-tag">${s}</span>`
+    ).join('');
+
+    document.getElementById('profile-month-sessions').textContent = monthStats.sessions;
+    document.getElementById('profile-month-hours').textContent = monthStats.hours;
+    document.getElementById('profile-month-earnings').textContent = '$' + monthStats.earnings.toLocaleString();
+    document.getElementById('profile-acceptance-rate').textContent = (stats.acceptanceRate || 100) + '%';
+
+    // Recent sessions
+    const engineerBookings = bookings.filter(b => b.engineerId === engineerId)
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 5);
+
+    document.getElementById('profile-recent-sessions').innerHTML = engineerBookings.length > 0 ?
+        engineerBookings.map(b => `
+            <div class="recent-session-item">
+                <div class="session-info">
+                    <span class="session-member">${b.memberName}</span>
+                    <span class="session-date">${formatDate(b.date)} • ${b.hours} hrs</span>
+                </div>
+                <span class="status-badge ${b.engineerStatus}">${b.engineerStatus}</span>
+            </div>
+        `).join('') : '<p style="color: var(--text-muted);">No sessions yet</p>';
+
+    // Sessions tab
+    renderProfileSessions(engineerId);
+
+    // Earnings tab
+    document.getElementById('profile-earnings-total').textContent = '$' + stats.totalEarnings.toLocaleString();
+    document.getElementById('profile-earnings-month').textContent = '$' + monthStats.earnings.toLocaleString();
+    document.getElementById('profile-earnings-last-month').textContent = '$' + lastMonthStats.earnings.toLocaleString();
+    document.getElementById('profile-hourly-rate').textContent = '$' + engineer.rate + '/hr';
+
+    // Earnings breakdown
+    const monthlyStats = engineer.monthlyStats || {};
+    const months = Object.keys(monthlyStats).sort().reverse().slice(0, 6);
+    document.getElementById('profile-earnings-breakdown').innerHTML = months.length > 0 ?
+        months.map(month => `
+            <div class="earnings-row">
+                <span class="month">${formatMonth(month)}</span>
+                <span class="details">${monthlyStats[month].sessions} sessions • ${monthlyStats[month].hours} hrs</span>
+                <span class="amount">$${monthlyStats[month].earnings.toLocaleString()}</span>
+            </div>
+        `).join('') : '<p style="color: var(--text-muted);">No earnings history</p>';
+
+    // Availability tab
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    days.forEach(day => {
+        const avail = engineer.availability[day];
+        const el = document.getElementById(`avail-${day}`);
+        const dayEl = el.parentElement;
+        if (avail) {
+            el.textContent = `${formatTime(avail.start)} - ${formatTime(avail.end)}`;
+            dayEl.classList.add('available');
+            dayEl.classList.remove('unavailable');
+        } else {
+            el.textContent = 'Off';
+            dayEl.classList.add('unavailable');
+            dayEl.classList.remove('available');
+        }
+    });
+
+    // Notes tab
+    renderEngineerNotes(engineer);
+
+    // Reset to overview tab
+    switchProfileTab('overview');
+
+    openModal('engineer-profile-modal');
+}
+
+function renderProfileSessions(engineerId) {
+    const container = document.getElementById('profile-sessions-list');
+    const filterValue = document.getElementById('profile-session-filter')?.value || 'all';
+    const today = new Date().toISOString().split('T')[0];
+
+    let filteredBookings = bookings.filter(b => b.engineerId === engineerId);
+
+    if (filterValue === 'upcoming') {
+        filteredBookings = filteredBookings.filter(b => b.date >= today);
+    } else if (filterValue === 'completed') {
+        filteredBookings = filteredBookings.filter(b => b.date < today);
+    }
+
+    filteredBookings.sort((a, b) => b.date.localeCompare(a.date));
+
+    container.innerHTML = filteredBookings.length > 0 ?
+        filteredBookings.map(b => `
+            <div class="profile-session-item">
+                <div class="session-main-info">
+                    <div class="member-name">${b.memberName}</div>
+                    <div class="session-meta">${formatDate(b.date)} • ${formatTime(b.startTime)} - ${formatTime(b.endTime)} • ${b.type}</div>
+                </div>
+                <span class="session-hours-badge">${b.hours} hrs</span>
+                <span class="status-badge ${b.engineerStatus}" style="margin-left: 8px;">${b.engineerStatus}</span>
+            </div>
+        `).join('') : '<p style="color: var(--text-muted); padding: 20px; text-align: center;">No sessions found</p>';
+}
+
+function renderEngineerNotes(engineer) {
+    const container = document.getElementById('profile-notes-list');
+    const notes = engineer.notes || [];
+
+    container.innerHTML = notes.length > 0 ?
+        notes.map(note => `
+            <div class="note-item">
+                <p class="note-text">${note.text}</p>
+                <div class="note-meta">${note.author} • ${new Date(note.createdAt).toLocaleDateString()}</div>
+            </div>
+        `).join('') : '<p style="color: var(--text-muted); text-align: center;">No notes yet</p>';
+}
+
+function switchProfileTab(tab) {
+    document.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.profile-tab-content').forEach(c => c.classList.remove('active'));
+
+    document.querySelector(`.profile-tab[onclick*="${tab}"]`).classList.add('active');
+    document.getElementById(`profile-tab-${tab}`).classList.add('active');
+}
+
+function addEngineerNote() {
+    if (!currentViewingEngineerId) return;
+
+    const noteText = document.getElementById('new-engineer-note').value.trim();
+    if (!noteText) {
+        showToast('Please enter a note', 'error');
+        return;
+    }
+
+    const engineer = engineers.find(e => e.id === currentViewingEngineerId);
+    if (!engineer) return;
+
+    if (!engineer.notes) engineer.notes = [];
+
+    const newNote = {
+        id: Date.now(),
+        text: noteText,
+        author: currentAdminUser.name,
+        createdAt: new Date().toISOString()
+    };
+
+    engineer.notes.push(newNote);
+    renderEngineerNotes(engineer);
+    document.getElementById('new-engineer-note').value = '';
+    showToast('Note added successfully', 'success');
+
+    // Save to storage
+    if (typeof TorchStorage !== 'undefined' && TorchStorage.saveEngineers) {
+        TorchStorage.saveEngineers();
+    }
+}
+
+function editEngineerAvailability() {
+    showToast('Availability editing coming soon', 'info');
+}
+
+function editEngineerFromProfile() {
+    closeModal('engineer-profile-modal');
+    editEngineer(currentViewingEngineerId);
+}
+
+function formatMonth(monthStr) {
+    const [year, month] = monthStr.split('-');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[parseInt(month) - 1]} ${year}`;
+}
+
+// Listen for session filter changes
+document.addEventListener('DOMContentLoaded', () => {
+    const sessionFilter = document.getElementById('profile-session-filter');
+    if (sessionFilter) {
+        sessionFilter.addEventListener('change', () => {
+            if (currentViewingEngineerId) {
+                renderProfileSessions(currentViewingEngineerId);
+            }
+        });
+    }
+});
 
 function addEngineer(event) {
     event.preventDefault();
@@ -927,17 +1275,69 @@ function addEngineer(event) {
 }
 
 function viewEngineer(id) {
-    const engineer = engineers.find(e => e.id === id);
-    if (engineer) {
-        showToast(`Viewing ${engineer.name}`, 'info');
-    }
+    openEngineerProfile(id);
 }
 
 function editEngineer(id) {
     const engineer = engineers.find(e => e.id === id);
-    if (engineer) {
-        showToast(`Editing ${engineer.name}`, 'info');
+    if (!engineer) return;
+
+    // Populate edit form
+    document.getElementById('edit-engineer-id').value = engineer.id;
+    document.getElementById('edit-engineer-name').value = engineer.name;
+    document.getElementById('edit-engineer-email').value = engineer.email;
+    document.getElementById('edit-engineer-phone').value = engineer.phone || '';
+    document.getElementById('edit-engineer-role').value = engineer.role;
+    document.getElementById('edit-engineer-rate').value = engineer.rate;
+    document.getElementById('edit-engineer-status').value = engineer.status;
+    document.getElementById('edit-engineer-bio').value = engineer.bio || '';
+
+    // Set specialties checkboxes
+    document.querySelectorAll('#edit-engineer-specialties input').forEach(cb => {
+        cb.checked = engineer.specialties.includes(cb.value);
+    });
+
+    openModal('edit-engineer-modal');
+}
+
+function saveEngineerEdit(event) {
+    event.preventDefault();
+
+    const engineerId = parseInt(document.getElementById('edit-engineer-id').value);
+    const engineer = engineers.find(e => e.id === engineerId);
+    if (!engineer) return;
+
+    // Get specialties
+    const specialties = [];
+    document.querySelectorAll('#edit-engineer-specialties input:checked').forEach(cb => {
+        specialties.push(cb.value);
+    });
+
+    // Update engineer
+    engineer.name = document.getElementById('edit-engineer-name').value;
+    engineer.email = document.getElementById('edit-engineer-email').value;
+    engineer.phone = document.getElementById('edit-engineer-phone').value;
+    engineer.role = document.getElementById('edit-engineer-role').value;
+    engineer.rate = parseInt(document.getElementById('edit-engineer-rate').value) || 60;
+    engineer.status = document.getElementById('edit-engineer-status').value;
+    engineer.bio = document.getElementById('edit-engineer-bio').value;
+    engineer.specialties = specialties;
+    engineer.updatedAt = new Date().toISOString();
+
+    // Update corresponding admin user if exists
+    const adminUser = adminUsers.find(a => a.engineerId === engineerId);
+    if (adminUser) {
+        adminUser.name = engineer.name;
+        adminUser.email = engineer.email;
+        TorchStorage.saveAdminUsers();
     }
+
+    // Save to storage
+    TorchStorage.saveEngineers();
+
+    closeModal('edit-engineer-modal');
+    renderEngineersCRM();
+    showToast(`${engineer.name} updated successfully`, 'success');
 }
 
 // Populate engineer dropdown in booking forms
