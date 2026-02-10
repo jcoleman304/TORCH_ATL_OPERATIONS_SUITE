@@ -1,0 +1,393 @@
+{
+  "name": "Torch ATL - Member Onboarding",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "torch-new-member",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "New Member Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": "torch-member-onboarding"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate and process incoming member data\nconst member = $input.first().json;\n\n// Generate unique access code (6-digit alphanumeric)\nconst generateAccessCode = () => {\n  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';\n  let code = 'TORCH-';\n  for (let i = 0; i < 6; i++) {\n    code += chars.charAt(Math.floor(Math.random() * chars.length));\n  }\n  return code;\n};\n\n// Generate member ID\nconst memberId = `TM-${Date.now().toString(36).toUpperCase()}`;\nconst accessCode = generateAccessCode();\nconst credentialCardId = `CARD-${memberId}`;\n\nreturn {\n  memberId,\n  accessCode,\n  credentialCardId,\n  firstName: member.firstName || member.first_name,\n  lastName: member.lastName || member.last_name,\n  email: member.email,\n  phone: member.phone,\n  membershipTier: member.membershipTier || member.tier || 'Spark',\n  startDate: member.startDate || new Date().toISOString().split('T')[0],\n  monthlyHours: member.monthlyHours || 8,\n  createdAt: new Date().toISOString(),\n  orientationScheduled: false,\n  welcomeEmailSent: false,\n  welcomeSmsSent: false,\n  crmAdded: false\n};"
+      },
+      "id": "process-member-data",
+      "name": "Process Member Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "welcome@torchatl.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Welcome to TORCH ATL, {{ $json.firstName }}! 🔥",
+        "emailType": "html",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }\n    .header { background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%); padding: 40px; text-align: center; }\n    .header h1 { color: white; margin: 0; font-size: 32px; }\n    .content { padding: 40px; max-width: 600px; margin: 0 auto; }\n    .access-code { background: #f8f8f8; border-left: 4px solid #FF6B35; padding: 20px; margin: 20px 0; }\n    .code { font-size: 24px; font-weight: bold; color: #FF6B35; letter-spacing: 2px; }\n    .cta-button { display: inline-block; background: #FF6B35; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }\n    .footer { background: #333; color: #999; padding: 20px; text-align: center; font-size: 12px; }\n  </style>\n</head>\n<body>\n  <div class=\"header\">\n    <h1>Welcome to TORCH ATL</h1>\n  </div>\n  <div class=\"content\">\n    <p>Dear {{ $json.firstName }},</p>\n    \n    <p>Welcome to the TORCH ATL family! We're thrilled to have you join our community of creators, innovators, and visionaries.</p>\n    \n    <div class=\"access-code\">\n      <p><strong>Your Access Code:</strong></p>\n      <p class=\"code\">{{ $json.accessCode }}</p>\n      <p><small>Use this code for facility access and booking verification.</small></p>\n    </div>\n    \n    <h3>Your Membership Details:</h3>\n    <ul>\n      <li><strong>Member ID:</strong> {{ $json.memberId }}</li>\n      <li><strong>Membership Tier:</strong> {{ $json.membershipTier }}</li>\n      <li><strong>Monthly Hours:</strong> {{ $json.monthlyHours }} hours</li>\n      <li><strong>Start Date:</strong> {{ $json.startDate }}</li>\n    </ul>\n    \n    <h3>Next Steps:</h3>\n    <ol>\n      <li>Schedule your orientation session (we'll reach out shortly)</li>\n      <li>Download our member app</li>\n      <li>Book your first session</li>\n    </ol>\n    \n    <a href=\"https://torchatl.com/member-portal\" class=\"cta-button\">Access Member Portal</a>\n    \n    <p>If you have any questions, don't hesitate to reach out. We're here to help you ignite your creative vision!</p>\n    \n    <p>Warm regards,<br>\n    <strong>Joi Coleman</strong><br>\n    Founder, TORCH ATL</p>\n  </div>\n  <div class=\"footer\">\n    <p>TORCH ATL | Atlanta's Premier Creative Event Space</p>\n    <p>Questions? Reply to this email or call us at (404) 555-TORCH</p>\n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "send-welcome-email",
+      "name": "Send Welcome Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [690, 160],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "TORCH SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "from": "+14045551234",
+        "to": "={{ $json.phone }}",
+        "message": "Welcome to TORCH ATL, {{ $json.firstName }}! 🔥\n\nYour access code: {{ $json.accessCode }}\n\nWe'll be in touch soon to schedule your orientation. Questions? Reply here or email welcome@torchatl.com\n\n- The TORCH Team"
+      },
+      "id": "send-welcome-sms",
+      "name": "Send Welcome SMS",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [690, 300],
+      "credentials": {
+        "twilioApi": {
+          "id": "twilio-credentials",
+          "name": "TORCH Twilio"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list"
+        },
+        "title": "TORCH Orientation - {{ $json.firstName }} {{ $json.lastName }}",
+        "start": "={{ $now.plus({days: 3}).toFormat('yyyy-MM-dd') }}T10:00:00",
+        "end": "={{ $now.plus({days: 3}).toFormat('yyyy-MM-dd') }}T11:00:00",
+        "additionalFields": {
+          "attendees": [
+            "={{ $json.email }}"
+          ],
+          "description": "Welcome orientation for new TORCH ATL member.\n\nMember ID: {{ $json.memberId }}\nTier: {{ $json.membershipTier }}\n\nAgenda:\n- Facility tour\n- Safety protocols\n- Booking system walkthrough\n- Equipment overview\n- Q&A",
+          "location": "TORCH ATL - Main Studio",
+          "sendUpdates": "all"
+        }
+      },
+      "id": "create-orientation-event",
+      "name": "Create Orientation Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [690, 440],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "google-calendar-credentials",
+          "name": "TORCH Google Calendar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubspot.com/crm/v3/objects/contacts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubSpotApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"properties\": {\n    \"email\": \"{{ $json.email }}\",\n    \"firstname\": \"{{ $json.firstName }}\",\n    \"lastname\": \"{{ $json.lastName }}\",\n    \"phone\": \"{{ $json.phone }}\",\n    \"torch_member_id\": \"{{ $json.memberId }}\",\n    \"torch_membership_tier\": \"{{ $json.membershipTier }}\",\n    \"torch_monthly_hours\": \"{{ $json.monthlyHours }}\",\n    \"torch_access_code\": \"{{ $json.accessCode }}\",\n    \"torch_start_date\": \"{{ $json.startDate }}\",\n    \"lifecyclestage\": \"customer\"\n  }\n}",
+        "options": {}
+      },
+      "id": "add-to-crm",
+      "name": "Add to CRM (HubSpot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [910, 160],
+      "credentials": {
+        "hubSpotApi": {
+          "id": "hubspot-credentials",
+          "name": "TORCH HubSpot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate credential card data for printing/digital card\nconst member = $input.first().json;\n\nconst cardData = {\n  cardId: member.credentialCardId,\n  memberId: member.memberId,\n  memberName: `${member.firstName} ${member.lastName}`,\n  accessCode: member.accessCode,\n  tier: member.membershipTier,\n  validFrom: member.startDate,\n  validUntil: new Date(new Date(member.startDate).setFullYear(new Date(member.startDate).getFullYear() + 1)).toISOString().split('T')[0],\n  qrCodeData: JSON.stringify({\n    type: 'TORCH_MEMBER',\n    id: member.memberId,\n    code: member.accessCode\n  }),\n  cardDesign: {\n    backgroundColor: member.membershipTier === 'Blaze' ? '#FF6B35' : \n                     member.membershipTier === 'Ignite' ? '#F7931E' : '#FFB347',\n    textColor: '#FFFFFF',\n    logoPosition: 'top-left'\n  },\n  printReady: true,\n  digitalCardUrl: `https://torchatl.com/cards/${member.credentialCardId}`\n};\n\nreturn {\n  ...member,\n  credentialCard: cardData\n};"
+      },
+      "id": "generate-credential-card",
+      "name": "Generate Credential Card",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.torchatl.com/internal/credential-cards",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.credentialCard) }}",
+        "options": {}
+      },
+      "id": "store-credential-card",
+      "name": "Store Credential Card",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1130, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "torch-api-credentials",
+          "name": "TORCH Internal API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "boolean": [
+            {
+              "name": "welcomeEmailSent",
+              "value": true
+            },
+            {
+              "name": "welcomeSmsSent",
+              "value": true
+            },
+            {
+              "name": "orientationScheduled",
+              "value": true
+            },
+            {
+              "name": "crmAdded",
+              "value": true
+            },
+            {
+              "name": "credentialCardGenerated",
+              "value": true
+            }
+          ],
+          "string": [
+            {
+              "name": "onboardingStatus",
+              "value": "complete"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-completion-flags",
+      "name": "Set Completion Flags",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1350, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.torchatl.com/internal/members",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "store-member-record",
+      "name": "Store Member Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1570, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "torch-api-credentials",
+          "name": "TORCH Internal API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Member onboarding completed successfully\",\n  \"data\": {\n    \"memberId\": \"{{ $json.memberId }}\",\n    \"accessCode\": \"{{ $json.accessCode }}\",\n    \"credentialCardId\": \"{{ $json.credentialCardId }}\",\n    \"orientationScheduled\": true\n  }\n}",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "id": "respond-success",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1790, 300]
+    },
+    {
+      "parameters": {
+        "channel": "#torch-operations",
+        "text": "=:sparkles: *New Member Onboarded*\n\n*Name:* {{ $json.firstName }} {{ $json.lastName }}\n*Member ID:* {{ $json.memberId }}\n*Tier:* {{ $json.membershipTier }}\n*Monthly Hours:* {{ $json.monthlyHours }}\n\n:white_check_mark: Welcome email sent\n:white_check_mark: Welcome SMS sent\n:white_check_mark: Orientation scheduled\n:white_check_mark: Added to CRM\n:white_check_mark: Credential card generated",
+        "otherOptions": {}
+      },
+      "id": "notify-slack",
+      "name": "Notify Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1570, 480],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credentials",
+          "name": "TORCH Slack"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "New Member Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Member Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Member Data": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Welcome SMS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Orientation Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome Email": {
+      "main": [
+        [
+          {
+            "node": "Add to CRM (HubSpot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome SMS": {
+      "main": [
+        [
+          {
+            "node": "Generate Credential Card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Orientation Event": {
+      "main": [
+        []
+      ]
+    },
+    "Add to CRM (HubSpot)": {
+      "main": [
+        []
+      ]
+    },
+    "Generate Credential Card": {
+      "main": [
+        [
+          {
+            "node": "Store Credential Card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Credential Card": {
+      "main": [
+        [
+          {
+            "node": "Set Completion Flags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Completion Flags": {
+      "main": [
+        [
+          {
+            "node": "Store Member Record",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Member Record": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "torch-error-handler"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "torch-atl",
+      "id": "tag-torch-atl"
+    },
+    {
+      "name": "member-management",
+      "id": "tag-member-mgmt"
+    },
+    {
+      "name": "onboarding",
+      "id": "tag-onboarding"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2026-02-09T12:00:00.000Z",
+  "versionId": "1"
+}

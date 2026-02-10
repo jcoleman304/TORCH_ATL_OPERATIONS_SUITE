@@ -1,0 +1,444 @@
+{
+  "name": "Torch ATL - Daily Operations",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "daily-trigger",
+      "name": "Daily 8 AM Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 400],
+      "notes": "Runs every day at 8 AM"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.torchatl.com/internal/bookings?date={{ $now.format('yyyy-MM-dd') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-todays-bookings",
+      "name": "Get Today's Bookings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "torch-api-credentials",
+          "name": "TORCH Internal API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.torchatl.com/internal/bookings?date={{ $now.format('yyyy-MM-dd') }}&guestListStatus=pending",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "check-guest-lists",
+      "name": "Check Guest List Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 500],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "torch-api-credentials",
+          "name": "TORCH Internal API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.torchatl.com/internal/facility/status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "check-facility-status",
+      "name": "Check Facility Prep Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 700],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "torch-api-credentials",
+          "name": "TORCH Internal API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compile daily briefing data\nconst bookings = $('Get Today\\'s Bookings').all();\nconst pendingGuestLists = $('Check Guest List Status').all();\nconst facilityStatus = $('Check Facility Prep Status').first().json;\n\nconst now = new Date();\nconst dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });\nconst formattedDate = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });\n\n// Process bookings\nconst bookingsList = bookings.map(b => {\n  const booking = b.json;\n  const startTime = new Date(booking.startDateTime);\n  const endTime = new Date(booking.endDateTime);\n  return {\n    bookingId: booking.bookingId,\n    memberName: booking.memberName,\n    spaceType: booking.spaceType,\n    startTime: startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),\n    endTime: endTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),\n    expectedGuests: booking.expectedGuests || 0,\n    eventType: booking.eventType,\n    guestListSubmitted: booking.guestListSubmitted || false,\n    specialRequirements: booking.specialRequirements || 'None'\n  };\n}).sort((a, b) => a.startTime.localeCompare(b.startTime));\n\n// Count stats\nconst totalBookings = bookingsList.length;\nconst totalGuests = bookingsList.reduce((sum, b) => sum + b.expectedGuests, 0);\nconst pendingGuestListsCount = pendingGuestLists.length;\n\n// Generate concierge checklist\nconst conciergeChecklist = [\n  { task: 'Review all bookings for the day', priority: 'high', completed: false },\n  { task: 'Verify guest lists are submitted', priority: 'high', completed: pendingGuestListsCount === 0 },\n  { task: 'Check facility prep status', priority: 'high', completed: facilityStatus.prepComplete || false },\n  { task: 'Confirm equipment reservations', priority: 'medium', completed: false },\n  { task: 'Review special requirements for each booking', priority: 'medium', completed: false },\n  { task: 'Prepare welcome materials for new members', priority: 'low', completed: false },\n  { task: 'Check inventory levels', priority: 'low', completed: false },\n  { task: 'Review member feedback from yesterday', priority: 'low', completed: false }\n];\n\n// Add booking-specific tasks\nbookingsList.forEach(booking => {\n  if (booking.specialRequirements !== 'None') {\n    conciergeChecklist.push({\n      task: `Prepare special requirements for ${booking.memberName}: ${booking.specialRequirements}`,\n      priority: 'high',\n      completed: false\n    });\n  }\n});\n\nreturn {\n  date: formattedDate,\n  dayOfWeek,\n  summary: {\n    totalBookings,\n    totalExpectedGuests: totalGuests,\n    pendingGuestLists: pendingGuestListsCount,\n    facilityReady: facilityStatus.prepComplete || false\n  },\n  bookings: bookingsList,\n  pendingGuestLists: pendingGuestLists.map(p => p.json),\n  facilityStatus,\n  conciergeChecklist,\n  alerts: generateAlerts(pendingGuestListsCount, facilityStatus, bookingsList)\n};\n\nfunction generateAlerts(pendingLists, facility, bookings) {\n  const alerts = [];\n  \n  if (pendingLists > 0) {\n    alerts.push({\n      type: 'warning',\n      message: `${pendingLists} booking(s) missing guest list submission`,\n      action: 'Contact members to submit guest lists'\n    });\n  }\n  \n  if (!facility.prepComplete) {\n    alerts.push({\n      type: 'warning',\n      message: 'Facility prep not marked as complete',\n      action: 'Verify cleaning and setup is done'\n    });\n  }\n  \n  if (facility.maintenanceIssues && facility.maintenanceIssues.length > 0) {\n    alerts.push({\n      type: 'critical',\n      message: `${facility.maintenanceIssues.length} maintenance issue(s) reported`,\n      action: 'Review and address before first booking'\n    });\n  }\n  \n  const largeEvents = bookings.filter(b => b.expectedGuests > 20);\n  if (largeEvents.length > 0) {\n    alerts.push({\n      type: 'info',\n      message: `${largeEvents.length} large event(s) today (20+ guests)`,\n      action: 'Ensure adequate staffing and supplies'\n    });\n  }\n  \n  return alerts;\n}"
+      },
+      "id": "compile-briefing",
+      "name": "Compile Daily Briefing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 400]
+    },
+    {
+      "parameters": {
+        "fromEmail": "operations@torchatl.com",
+        "toEmail": "joi@torchatl.com",
+        "subject": "TORCH ATL Daily Briefing - {{ $json.date }}",
+        "emailType": "html",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }\n    .header { background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%); padding: 30px; text-align: center; }\n    .header h1 { color: white; margin: 0; font-size: 28px; }\n    .header p { color: rgba(255,255,255,0.9); margin: 5px 0 0 0; }\n    .content { padding: 30px; max-width: 700px; margin: 0 auto; }\n    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 20px 0; }\n    .summary-card { background: #f8f8f8; border-radius: 8px; padding: 20px; text-align: center; }\n    .summary-card .number { font-size: 36px; font-weight: bold; color: #FF6B35; }\n    .summary-card .label { color: #666; font-size: 12px; text-transform: uppercase; }\n    .alert { padding: 15px; border-radius: 8px; margin: 10px 0; }\n    .alert-critical { background: #FFEBEE; border-left: 4px solid #F44336; }\n    .alert-warning { background: #FFF3E0; border-left: 4px solid #FF9800; }\n    .alert-info { background: #E3F2FD; border-left: 4px solid #2196F3; }\n    .booking-card { background: white; border: 1px solid #eee; border-radius: 8px; padding: 20px; margin: 15px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }\n    .booking-time { color: #FF6B35; font-weight: bold; font-size: 18px; }\n    .booking-member { font-size: 16px; margin: 5px 0; }\n    .booking-details { color: #666; font-size: 14px; }\n    .checklist { background: #f8f8f8; border-radius: 8px; padding: 20px; margin: 20px 0; }\n    .checklist-item { padding: 10px 0; border-bottom: 1px solid #eee; display: flex; align-items: center; }\n    .checklist-item:last-child { border-bottom: none; }\n    .priority-high { color: #F44336; font-weight: bold; }\n    .priority-medium { color: #FF9800; }\n    .priority-low { color: #4CAF50; }\n    .checkbox { width: 20px; height: 20px; border: 2px solid #ddd; border-radius: 4px; margin-right: 15px; }\n    .section-title { color: #333; font-size: 20px; margin: 30px 0 15px 0; border-bottom: 2px solid #FF6B35; padding-bottom: 10px; }\n    .footer { background: #333; color: #999; padding: 20px; text-align: center; font-size: 12px; }\n    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }\n    .status-ready { background: #E8F5E9; color: #4CAF50; }\n    .status-pending { background: #FFF3E0; color: #FF9800; }\n  </style>\n</head>\n<body>\n  <div class=\"header\">\n    <h1>Good Morning, Joi!</h1>\n    <p>{{ $json.date }}</p>\n  </div>\n  \n  <div class=\"content\">\n    <!-- Summary Cards -->\n    <div class=\"summary-grid\">\n      <div class=\"summary-card\">\n        <div class=\"number\">{{ $json.summary.totalBookings }}</div>\n        <div class=\"label\">Bookings</div>\n      </div>\n      <div class=\"summary-card\">\n        <div class=\"number\">{{ $json.summary.totalExpectedGuests }}</div>\n        <div class=\"label\">Expected Guests</div>\n      </div>\n      <div class=\"summary-card\">\n        <div class=\"number\">{{ $json.summary.pendingGuestLists }}</div>\n        <div class=\"label\">Pending Guest Lists</div>\n      </div>\n      <div class=\"summary-card\">\n        <div class=\"number\">{{ $json.summary.facilityReady ? '✓' : '!' }}</div>\n        <div class=\"label\">Facility Status</div>\n      </div>\n    </div>\n    \n    <!-- Alerts Section -->\n    {{ $json.alerts.length > 0 ? '<h2 class=\"section-title\">Alerts & Action Items</h2>' : '' }}\n    {{ $json.alerts.map(alert => `\n      <div class=\"alert alert-${alert.type}\">\n        <strong>${alert.message}</strong><br>\n        <small>Action: ${alert.action}</small>\n      </div>\n    `).join('') }}\n    \n    <!-- Today's Bookings -->\n    <h2 class=\"section-title\">Today's Schedule</h2>\n    {{ $json.bookings.length === 0 ? '<p>No bookings scheduled for today.</p>' : '' }}\n    {{ $json.bookings.map(booking => `\n      <div class=\"booking-card\">\n        <div class=\"booking-time\">${booking.startTime} - ${booking.endTime}</div>\n        <div class=\"booking-member\">${booking.memberName}</div>\n        <div class=\"booking-details\">\n          <strong>Space:</strong> ${booking.spaceType} | \n          <strong>Event:</strong> ${booking.eventType} | \n          <strong>Guests:</strong> ${booking.expectedGuests}\n          <span class=\"status-badge ${booking.guestListSubmitted ? 'status-ready' : 'status-pending'}\">\n            ${booking.guestListSubmitted ? 'Guest List Ready' : 'Guest List Pending'}\n          </span>\n        </div>\n        ${booking.specialRequirements !== 'None' ? `<div class=\"booking-details\"><strong>Special Requirements:</strong> ${booking.specialRequirements}</div>` : ''}\n      </div>\n    `).join('') }}\n    \n    <!-- Concierge Checklist -->\n    <h2 class=\"section-title\">Daily Checklist</h2>\n    <div class=\"checklist\">\n      {{ $json.conciergeChecklist.map(item => `\n        <div class=\"checklist-item\">\n          <div class=\"checkbox\">${item.completed ? '✓' : ''}</div>\n          <span class=\"priority-${item.priority}\">${item.task}</span>\n        </div>\n      `).join('') }}\n    </div>\n    \n    <p style=\"text-align: center; margin-top: 30px;\">\n      <a href=\"https://torchatl.com/admin/dashboard\" style=\"display: inline-block; background: #FF6B35; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;\">Open Dashboard</a>\n    </p>\n  </div>\n  \n  <div class=\"footer\">\n    <p>TORCH ATL Operations | Automated Daily Briefing</p>\n    <p>This email was generated automatically at 8:00 AM</p>\n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "send-daily-briefing",
+      "name": "Send Daily Briefing to Joi",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [910, 300],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "TORCH SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-pending-lists",
+              "leftValue": "={{ $json.summary.pendingGuestLists }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-pending-lists",
+      "name": "Any Pending Guest Lists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [910, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get members with pending guest lists and send reminders\nconst briefing = $input.first().json;\nconst pendingBookings = briefing.pendingGuestLists;\n\nreturn pendingBookings.map(booking => ({\n  bookingId: booking.bookingId,\n  memberName: booking.memberName,\n  memberEmail: booking.memberEmail,\n  memberPhone: booking.memberPhone,\n  spaceType: booking.spaceType,\n  startTime: new Date(booking.startDateTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),\n  isUrgent: true\n}));"
+      },
+      "id": "prepare-guest-list-reminders",
+      "name": "Prepare Guest List Reminders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1130, 500]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "from": "+14045551234",
+        "to": "={{ $json.memberPhone }}",
+        "message": "Hi {{ $json.memberName }}! Reminder: Your TORCH session is TODAY at {{ $json.startTime }}. Please submit your guest list ASAP at torchatl.com/guests or reply with names. Thanks!"
+      },
+      "id": "send-guest-list-reminder-sms",
+      "name": "Send Guest List Reminder SMS",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [1350, 500],
+      "credentials": {
+        "twilioApi": {
+          "id": "twilio-credentials",
+          "name": "TORCH Twilio"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.torchatl.com/internal/checklists",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"date\": \"{{ $json.date }}\",\n  \"type\": \"concierge\",\n  \"items\": {{ JSON.stringify($json.conciergeChecklist) }},\n  \"createdAt\": \"{{ $now.toISO() }}\"\n}",
+        "options": {}
+      },
+      "id": "store-checklist",
+      "name": "Store Concierge Checklist",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [910, 700],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "torch-api-credentials",
+          "name": "TORCH Internal API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#torch-operations",
+        "text": "=:sunrise: *Daily Operations Briefing*\n\n*{{ $json.date }}*\n\n:calendar: *{{ $json.summary.totalBookings }}* bookings today\n:busts_in_silhouette: *{{ $json.summary.totalExpectedGuests }}* expected guests\n:clipboard: *{{ $json.summary.pendingGuestLists }}* pending guest lists\n:house: Facility: {{ $json.summary.facilityReady ? ':white_check_mark: Ready' : ':warning: Needs attention' }}\n\n{{ $json.alerts.length > 0 ? '*Alerts:*\\n' + $json.alerts.map(a => `${a.type === 'critical' ? ':rotating_light:' : a.type === 'warning' ? ':warning:' : ':information_source:'} ${a.message}`).join('\\n') : ':white_check_mark: No alerts' }}\n\n<https://torchatl.com/admin/dashboard|Open Dashboard>",
+        "otherOptions": {}
+      },
+      "id": "send-slack-briefing",
+      "name": "Send Slack Briefing",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1130, 300],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credentials",
+          "name": "TORCH Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * *"
+            }
+          ]
+        }
+      },
+      "id": "evening-trigger",
+      "name": "Evening 6 PM Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 900],
+      "notes": "Runs every day at 6 PM for end-of-day summary"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.torchatl.com/internal/bookings?date={{ $now.format('yyyy-MM-dd') }}&includeStats=true",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-day-summary",
+      "name": "Get Day Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 900],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "torch-api-credentials",
+          "name": "TORCH Internal API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compile end-of-day summary\nconst data = $input.first().json;\nconst bookings = data.bookings || data;\nconst now = new Date();\n\nconst completed = Array.isArray(bookings) ? bookings.filter(b => b.status === 'completed') : [];\nconst cancelled = Array.isArray(bookings) ? bookings.filter(b => b.status === 'cancelled') : [];\nconst noShows = Array.isArray(bookings) ? bookings.filter(b => b.status === 'no_show') : [];\n\nconst totalRevenue = completed.reduce((sum, b) => sum + (b.revenue || 0), 0);\nconst totalHoursUsed = completed.reduce((sum, b) => sum + (b.durationHours || 0), 0);\nconst totalGuests = completed.reduce((sum, b) => sum + (b.actualGuests || b.expectedGuests || 0), 0);\n\nreturn {\n  date: now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),\n  stats: {\n    totalBookings: Array.isArray(bookings) ? bookings.length : 0,\n    completedBookings: completed.length,\n    cancelledBookings: cancelled.length,\n    noShows: noShows.length,\n    totalRevenue,\n    totalHoursUsed,\n    totalGuests,\n    averageRating: data.averageRating || 0\n  },\n  highlights: data.highlights || [],\n  issues: data.issues || [],\n  tomorrowBookings: data.tomorrowCount || 0\n};"
+      },
+      "id": "compile-eod-summary",
+      "name": "Compile EOD Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 900]
+    },
+    {
+      "parameters": {
+        "channel": "#torch-operations",
+        "text": "=:moon: *End of Day Summary*\n\n*{{ $json.date }}*\n\n:white_check_mark: *{{ $json.stats.completedBookings }}* sessions completed\n:x: *{{ $json.stats.cancelledBookings }}* cancelled\n:no_entry: *{{ $json.stats.noShows }}* no-shows\n:moneybag: *${{ $json.stats.totalRevenue.toFixed(2) }}* revenue\n:clock3: *{{ $json.stats.totalHoursUsed }}* hours used\n:busts_in_silhouette: *{{ $json.stats.totalGuests }}* guests served\n\n:calendar: *{{ $json.tomorrowBookings }}* bookings scheduled for tomorrow\n\nHave a great evening! :sparkles:",
+        "otherOptions": {}
+      },
+      "id": "send-eod-slack",
+      "name": "Send EOD Slack Summary",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [910, 900],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credentials",
+          "name": "TORCH Slack"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 8 AM Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Today's Bookings",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Guest List Status",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Facility Prep Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Today's Bookings": {
+      "main": [
+        [
+          {
+            "node": "Compile Daily Briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Guest List Status": {
+      "main": [
+        [
+          {
+            "node": "Compile Daily Briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Facility Prep Status": {
+      "main": [
+        [
+          {
+            "node": "Compile Daily Briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Daily Briefing": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Briefing to Joi",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Any Pending Guest Lists?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Store Concierge Checklist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Daily Briefing to Joi": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Pending Guest Lists?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Guest List Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Prepare Guest List Reminders": {
+      "main": [
+        [
+          {
+            "node": "Send Guest List Reminder SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evening 6 PM Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Day Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Day Summary": {
+      "main": [
+        [
+          {
+            "node": "Compile EOD Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile EOD Summary": {
+      "main": [
+        [
+          {
+            "node": "Send EOD Slack Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "torch-error-handler"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "torch-atl",
+      "id": "tag-torch-atl"
+    },
+    {
+      "name": "daily-operations",
+      "id": "tag-daily-ops"
+    }
+  ],
+  "triggerCount": 2,
+  "updatedAt": "2026-02-09T12:00:00.000Z",
+  "versionId": "1"
+}

@@ -1,0 +1,650 @@
+{
+  "name": "Torch ATL - Billing Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 1 * *"
+            }
+          ]
+        }
+      },
+      "id": "monthly-trigger",
+      "name": "1st of Month Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300],
+      "notes": "Runs at 6 AM on the 1st of every month"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.torchatl.com/internal/members?status=active",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-active-members",
+      "name": "Get Active Members",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "torch-api-credentials",
+          "name": "TORCH Internal API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reset hours for all active members\nconst members = $input.all();\nconst now = new Date();\nconst billingPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;\n\nconst resetResults = members.map(member => {\n  const m = member.json;\n  return {\n    memberId: m.memberId,\n    memberName: `${m.firstName} ${m.lastName}`,\n    email: m.email,\n    previousHoursUsed: m.hoursUsed || 0,\n    previousOverageHours: m.overageHours || 0,\n    monthlyAllowance: m.monthlyHours || 8,\n    hoursUsed: 0,\n    overageHours: 0,\n    billingPeriod,\n    resetAt: now.toISOString(),\n    membershipTier: m.membershipTier,\n    monthlyRate: m.monthlyRate || getTierRate(m.membershipTier),\n    overageRate: m.overageRate || 75,\n    squareCustomerId: m.squareCustomerId,\n    paymentMethodId: m.paymentMethodId\n  };\n});\n\nfunction getTierRate(tier) {\n  const rates = {\n    'Spark': 299,\n    'Ignite': 599,\n    'Blaze': 999,\n    'Inferno': 1499\n  };\n  return rates[tier] || 299;\n}\n\nreturn resetResults;"
+      },
+      "id": "reset-member-hours",
+      "name": "Reset Member Hours",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-members",
+      "name": "Split Into Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.torchatl.com/internal/members/{{ $json.memberId }}/hours/reset",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"billingPeriod\": \"{{ $json.billingPeriod }}\",\n  \"previousHoursUsed\": {{ $json.previousHoursUsed }},\n  \"previousOverageHours\": {{ $json.previousOverageHours }},\n  \"newHoursUsed\": 0,\n  \"resetAt\": \"{{ $json.resetAt }}\"\n}",
+        "options": {}
+      },
+      "id": "update-hours-api",
+      "name": "Reset Hours in Database",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1130, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "torch-api-credentials",
+          "name": "TORCH Internal API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate invoice for member\nconst member = $input.first().json;\nconst now = new Date();\n\n// Calculate overage charges from previous month\nconst overageCharges = member.previousOverageHours * member.overageRate;\n\n// Generate invoice number\nconst invoiceNumber = `INV-${member.billingPeriod.replace('-', '')}-${member.memberId.slice(-6)}`;\n\nconst invoice = {\n  invoiceId: `inv_${Date.now().toString(36)}`,\n  invoiceNumber,\n  memberId: member.memberId,\n  memberName: member.memberName,\n  email: member.email,\n  billingPeriod: member.billingPeriod,\n  squareCustomerId: member.squareCustomerId,\n  paymentMethodId: member.paymentMethodId,\n  lineItems: [\n    {\n      description: `${member.membershipTier} Membership - ${member.billingPeriod}`,\n      quantity: 1,\n      unitPrice: member.monthlyRate,\n      amount: member.monthlyRate\n    }\n  ],\n  subtotal: member.monthlyRate,\n  overageCharges: 0,\n  tax: 0,\n  total: member.monthlyRate,\n  currency: 'USD',\n  status: 'pending',\n  dueDate: now.toISOString().split('T')[0],\n  createdAt: now.toISOString()\n};\n\n// Add overage charges if any\nif (overageCharges > 0) {\n  invoice.lineItems.push({\n    description: `Overage Hours (${member.previousOverageHours} hrs @ $${member.overageRate}/hr)`,\n    quantity: member.previousOverageHours,\n    unitPrice: member.overageRate,\n    amount: overageCharges\n  });\n  invoice.overageCharges = overageCharges;\n  invoice.subtotal += overageCharges;\n  invoice.total += overageCharges;\n}\n\n// Calculate tax (8% example)\ninvoice.tax = Math.round(invoice.subtotal * 0.08 * 100) / 100;\ninvoice.total = invoice.subtotal + invoice.tax;\n\nreturn invoice;"
+      },
+      "id": "generate-invoice",
+      "name": "Generate Invoice",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://connect.squareup.com/v2/payments",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Square-Version",
+              "value": "2024-01-18"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"idempotency_key\": \"{{ $json.invoiceId }}\",\n  \"source_id\": \"{{ $json.paymentMethodId }}\",\n  \"amount_money\": {\n    \"amount\": {{ Math.round($json.total * 100) }},\n    \"currency\": \"USD\"\n  },\n  \"customer_id\": \"{{ $json.squareCustomerId }}\",\n  \"reference_id\": \"{{ $json.invoiceNumber }}\",\n  \"note\": \"TORCH ATL {{ $json.billingPeriod }} Membership\"\n}",
+        "options": {}
+      },
+      "id": "process-square-payment",
+      "name": "Process Square Payment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1570, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "square-credentials",
+          "name": "Square API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "payment-success-check",
+              "leftValue": "={{ $json.payment?.status }}",
+              "rightValue": "COMPLETED",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-payment-status",
+      "name": "Payment Successful?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1790, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "billing@torchatl.com",
+        "toEmail": "={{ $('Generate Invoice').item.json.email }}",
+        "subject": "Payment Received - TORCH ATL Invoice {{ $('Generate Invoice').item.json.invoiceNumber }}",
+        "emailType": "html",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }\n    .header { background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%); padding: 30px; text-align: center; }\n    .header h1 { color: white; margin: 0; }\n    .content { padding: 30px; max-width: 600px; margin: 0 auto; }\n    .success-badge { background: #E8F5E9; border: 2px solid #4CAF50; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }\n    .invoice-details { background: #f8f8f8; border-radius: 8px; padding: 20px; margin: 20px 0; }\n    .line-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }\n    .total-row { font-weight: bold; font-size: 18px; border-top: 2px solid #333; margin-top: 10px; padding-top: 15px; }\n    .footer { background: #333; color: #999; padding: 20px; text-align: center; font-size: 12px; }\n  </style>\n</head>\n<body>\n  <div class=\"header\">\n    <h1>Payment Received</h1>\n  </div>\n  <div class=\"content\">\n    <div class=\"success-badge\">\n      <h2 style=\"color: #4CAF50; margin: 0;\">Thank You!</h2>\n      <p>Your payment has been processed successfully.</p>\n    </div>\n    \n    <div class=\"invoice-details\">\n      <h3>Invoice Details</h3>\n      <p><strong>Invoice #:</strong> {{ $('Generate Invoice').item.json.invoiceNumber }}</p>\n      <p><strong>Billing Period:</strong> {{ $('Generate Invoice').item.json.billingPeriod }}</p>\n      <p><strong>Payment ID:</strong> {{ $json.payment.id }}</p>\n      \n      <hr>\n      \n      <div class=\"line-item\">\n        <span>Membership Fee</span>\n        <span>${{ $('Generate Invoice').item.json.lineItems[0].amount.toFixed(2) }}</span>\n      </div>\n      \n      {{ $('Generate Invoice').item.json.overageCharges > 0 ? `\n      <div class=\"line-item\">\n        <span>Overage Charges</span>\n        <span>$${$('Generate Invoice').item.json.overageCharges.toFixed(2)}</span>\n      </div>\n      ` : '' }}\n      \n      <div class=\"line-item\">\n        <span>Tax</span>\n        <span>${{ $('Generate Invoice').item.json.tax.toFixed(2) }}</span>\n      </div>\n      \n      <div class=\"line-item total-row\">\n        <span>Total Paid</span>\n        <span>${{ $('Generate Invoice').item.json.total.toFixed(2) }}</span>\n      </div>\n    </div>\n    \n    <p>Your membership hours have been reset for the new billing period.</p>\n    <p><strong>Monthly Hours Available:</strong> {{ $('Reset Member Hours').item.json.monthlyAllowance }} hours</p>\n    \n    <p>Thank you for being a valued TORCH ATL member!</p>\n    \n    <p>Best regards,<br><strong>TORCH ATL Billing</strong></p>\n  </div>\n  <div class=\"footer\">\n    <p>Questions about your bill? Contact billing@torchatl.com</p>\n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "send-payment-confirmation",
+      "name": "Send Payment Confirmation",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [2010, 160],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "TORCH SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.torchatl.com/internal/invoices/{{ $('Generate Invoice').item.json.invoiceId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"paid\",\n  \"paymentId\": \"{{ $json.payment.id }}\",\n  \"paidAt\": \"{{ $json.payment.created_at }}\"\n}",
+        "options": {}
+      },
+      "id": "update-invoice-paid",
+      "name": "Update Invoice Status (Paid)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2230, 160],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "torch-api-credentials",
+          "name": "TORCH Internal API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle failed payment - initiate dunning sequence\nconst invoice = $('Generate Invoice').item.json;\nconst paymentResponse = $input.first().json;\n\nreturn {\n  ...invoice,\n  status: 'payment_failed',\n  failureReason: paymentResponse.errors?.[0]?.detail || 'Payment declined',\n  failureCode: paymentResponse.errors?.[0]?.code || 'UNKNOWN',\n  dunningStep: 1,\n  nextRetryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days\n  maxRetries: 3\n};"
+      },
+      "id": "prepare-dunning",
+      "name": "Prepare Dunning Sequence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2010, 440]
+    },
+    {
+      "parameters": {
+        "fromEmail": "billing@torchatl.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Action Required: Payment Failed - TORCH ATL Invoice {{ $json.invoiceNumber }}",
+        "emailType": "html",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }\n    .header { background: #FF6B35; padding: 30px; text-align: center; }\n    .header h1 { color: white; margin: 0; }\n    .content { padding: 30px; max-width: 600px; margin: 0 auto; }\n    .alert-box { background: #FFEBEE; border: 2px solid #F44336; border-radius: 8px; padding: 20px; margin: 20px 0; }\n    .cta-button { display: inline-block; background: #FF6B35; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; }\n    .footer { background: #333; color: #999; padding: 20px; text-align: center; font-size: 12px; }\n  </style>\n</head>\n<body>\n  <div class=\"header\">\n    <h1>Payment Issue</h1>\n  </div>\n  <div class=\"content\">\n    <p>Hi {{ $json.memberName }},</p>\n    \n    <div class=\"alert-box\">\n      <h3 style=\"color: #F44336; margin-top: 0;\">Your payment could not be processed</h3>\n      <p><strong>Invoice:</strong> {{ $json.invoiceNumber }}</p>\n      <p><strong>Amount:</strong> ${{ $json.total.toFixed(2) }}</p>\n      <p><strong>Reason:</strong> {{ $json.failureReason }}</p>\n    </div>\n    \n    <p>Please update your payment method to continue enjoying your TORCH ATL membership benefits.</p>\n    \n    <p style=\"text-align: center;\">\n      <a href=\"https://torchatl.com/member-portal/billing\" class=\"cta-button\">Update Payment Method</a>\n    </p>\n    \n    <p><strong>What happens next?</strong></p>\n    <ul>\n      <li>We'll automatically retry your payment in 3 days</li>\n      <li>Your membership remains active during this time</li>\n      <li>If payment continues to fail, your account may be suspended</li>\n    </ul>\n    \n    <p>If you believe this is an error or need assistance, please contact us immediately at billing@torchatl.com or call (404) 555-TORCH.</p>\n    \n    <p>Thank you for your attention to this matter.</p>\n    \n    <p>Best regards,<br><strong>TORCH ATL Billing</strong></p>\n  </div>\n  <div class=\"footer\">\n    <p>This is an automated message. Please do not reply directly to this email.</p>\n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "send-dunning-email-1",
+      "name": "Send Failed Payment Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [2230, 440],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "TORCH SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.torchatl.com/internal/dunning",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "store-dunning-record",
+      "name": "Store Dunning Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2450, 440],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "torch-api-credentials",
+          "name": "TORCH Internal API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 10
+            }
+          ]
+        }
+      },
+      "id": "dunning-check-trigger",
+      "name": "Daily Dunning Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 700],
+      "notes": "Runs daily at 10 AM to check for dunning retries"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.torchatl.com/internal/dunning?status=pending&retryDue=true",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-dunning-records",
+      "name": "Get Pending Dunning Records",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 700],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "torch-api-credentials",
+          "name": "TORCH Internal API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process dunning retry\nconst records = $input.all();\n\nreturn records.map(record => {\n  const r = record.json;\n  const nextStep = r.dunningStep + 1;\n  const isLastAttempt = nextStep >= r.maxRetries;\n  \n  return {\n    ...r,\n    dunningStep: nextStep,\n    isLastAttempt,\n    nextAction: isLastAttempt ? 'suspend_account' : 'retry_payment',\n    nextRetryDate: isLastAttempt ? null : new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()\n  };\n});"
+      },
+      "id": "process-dunning",
+      "name": "Process Dunning Retry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 700]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "last-attempt-check",
+              "leftValue": "={{ $json.isLastAttempt }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-last-attempt",
+      "name": "Is Last Attempt?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [910, 700]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.torchatl.com/internal/members/{{ $json.memberId }}/status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"suspended\",\n  \"suspendedAt\": \"{{ $now.toISO() }}\",\n  \"suspensionReason\": \"payment_failure\",\n  \"invoiceId\": \"{{ $json.invoiceId }}\"\n}",
+        "options": {}
+      },
+      "id": "suspend-account",
+      "name": "Suspend Account",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1130, 560],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "torch-api-credentials",
+          "name": "TORCH Internal API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "billing@torchatl.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Account Suspended - TORCH ATL",
+        "emailType": "html",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }\n    .header { background: #F44336; padding: 30px; text-align: center; }\n    .header h1 { color: white; margin: 0; }\n    .content { padding: 30px; max-width: 600px; margin: 0 auto; }\n    .alert-box { background: #FFEBEE; border: 2px solid #F44336; border-radius: 8px; padding: 20px; margin: 20px 0; }\n    .cta-button { display: inline-block; background: #FF6B35; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; }\n  </style>\n</head>\n<body>\n  <div class=\"header\">\n    <h1>Account Suspended</h1>\n  </div>\n  <div class=\"content\">\n    <p>Dear {{ $json.memberName }},</p>\n    \n    <div class=\"alert-box\">\n      <p>Unfortunately, after multiple attempts, we were unable to process your payment. Your TORCH ATL membership has been temporarily suspended.</p>\n    </div>\n    \n    <p><strong>Outstanding Balance:</strong> ${{ $json.total.toFixed(2) }}</p>\n    \n    <p>To reactivate your membership immediately:</p>\n    \n    <p style=\"text-align: center;\">\n      <a href=\"https://torchatl.com/member-portal/reactivate\" class=\"cta-button\">Reactivate Now</a>\n    </p>\n    \n    <p>We value you as a member and hope to see you back soon. If you have any questions or concerns, please don't hesitate to reach out.</p>\n    \n    <p>Best regards,<br><strong>TORCH ATL Team</strong></p>\n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "send-suspension-email",
+      "name": "Send Suspension Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1350, 560],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "TORCH SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#torch-operations",
+        "text": "=:rotating_light: *Account Suspended*\n\n*Member:* {{ $json.memberName }}\n*Member ID:* {{ $json.memberId }}\n*Outstanding:* ${{ $json.total.toFixed(2) }}\n*Reason:* Payment failed after {{ $json.maxRetries }} attempts\n\nPlease follow up with the member.",
+        "otherOptions": {}
+      },
+      "id": "notify-suspension-slack",
+      "name": "Notify Team (Suspension)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1570, 560],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credentials",
+          "name": "TORCH Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#torch-billing",
+        "text": "=:moneybag: *Monthly Billing Complete*\n\n*Period:* {{ $now.format('MMMM yyyy') }}\n*Members Processed:* {{ $('Get Active Members').all().length }}\n*Hours Reset:* All member hours reset to 0\n\nCheck the billing dashboard for detailed results.",
+        "otherOptions": {}
+      },
+      "id": "notify-billing-complete",
+      "name": "Notify Billing Complete",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2450, 160],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-credentials",
+          "name": "TORCH Slack"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "1st of Month Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Active Members",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Members": {
+      "main": [
+        [
+          {
+            "node": "Reset Member Hours",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset Member Hours": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Batches": {
+      "main": [
+        [
+          {
+            "node": "Reset Hours in Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset Hours in Database": {
+      "main": [
+        [
+          {
+            "node": "Generate Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Invoice": {
+      "main": [
+        [
+          {
+            "node": "Process Square Payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Square Payment": {
+      "main": [
+        [
+          {
+            "node": "Payment Successful?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payment Successful?": {
+      "main": [
+        [
+          {
+            "node": "Send Payment Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Dunning Sequence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Payment Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Update Invoice Status (Paid)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Invoice Status (Paid)": {
+      "main": [
+        [
+          {
+            "node": "Notify Billing Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Dunning Sequence": {
+      "main": [
+        [
+          {
+            "node": "Send Failed Payment Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Failed Payment Email": {
+      "main": [
+        [
+          {
+            "node": "Store Dunning Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Dunning Check": {
+      "main": [
+        [
+          {
+            "node": "Get Pending Dunning Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pending Dunning Records": {
+      "main": [
+        [
+          {
+            "node": "Process Dunning Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Dunning Retry": {
+      "main": [
+        [
+          {
+            "node": "Is Last Attempt?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Last Attempt?": {
+      "main": [
+        [
+          {
+            "node": "Suspend Account",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Square Payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Suspend Account": {
+      "main": [
+        [
+          {
+            "node": "Send Suspension Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Suspension Email": {
+      "main": [
+        [
+          {
+            "node": "Notify Team (Suspension)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "torch-error-handler"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "torch-atl",
+      "id": "tag-torch-atl"
+    },
+    {
+      "name": "billing",
+      "id": "tag-billing"
+    },
+    {
+      "name": "payments",
+      "id": "tag-payments"
+    }
+  ],
+  "triggerCount": 2,
+  "updatedAt": "2026-02-09T12:00:00.000Z",
+  "versionId": "1"
+}

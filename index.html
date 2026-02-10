@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TORCH ATL Operations Suite</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-screen active">
+        <div class="login-container">
+            <div class="login-brand">
+                <h1>TORCH</h1>
+                <span>OPERATIONS</span>
+            </div>
+            <p class="login-tagline">Operations Suite</p>
+
+            <form id="admin-login-form" onsubmit="handleAdminLogin(event)">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="admin-email" placeholder="your@torchatl.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Access Code</label>
+                    <input type="password" id="admin-code" placeholder="Enter access code" required>
+                </div>
+                <button type="submit" class="btn primary full">Sign In</button>
+            </form>
+
+            <p class="login-note">Admin: joi@torchatl.com / ADMIN2026<br>Engineer: jrodriguez.audio@gmail.com / ENG001</p>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="app-container" class="app-container" style="display: none;">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+        <div class="logo">
+            <h1>TORCH</h1>
+            <span>ATL</span>
+        </div>
+        <ul class="nav-links">
+            <!-- Admin-only items -->
+            <li class="active admin-only" data-tab="dashboard">
+                <span class="icon">📊</span>
+                <span>Dashboard</span>
+            </li>
+            <li class="admin-only" data-tab="crm">
+                <span class="icon">👥</span>
+                <span>Member CRM</span>
+            </li>
+            <li class="admin-only" data-tab="bookings">
+                <span class="icon">📅</span>
+                <span>Bookings</span>
+            </li>
+            <li class="admin-only" data-tab="engineers">
+                <span class="icon">🎛️</span>
+                <span>Engineers</span>
+            </li>
+            <li class="admin-only" data-tab="sms">
+                <span class="icon">💬</span>
+                <span>SMS Sender</span>
+            </li>
+            <li class="admin-only" data-tab="email">
+                <span class="icon">📧</span>
+                <span>Email Blast</span>
+            </li>
+            <li class="admin-only" data-tab="reports-review">
+                <span class="icon">📋</span>
+                <span>Session Reports</span>
+            </li>
+            <li class="admin-only" data-tab="settings">
+                <span class="icon">⚙️</span>
+                <span>Settings</span>
+            </li>
+
+            <!-- Engineer-only items -->
+            <li class="engineer-only" data-tab="my-sessions">
+                <span class="icon">📅</span>
+                <span>My Sessions</span>
+            </li>
+            <li class="engineer-only" data-tab="pending-requests">
+                <span class="icon">⏳</span>
+                <span>Pending Requests</span>
+            </li>
+            <li class="engineer-only" data-tab="my-reports">
+                <span class="icon">📝</span>
+                <span>Session Reports</span>
+            </li>
+        </ul>
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <span id="current-user-name">User</span>
+                <span id="current-user-role" class="user-role">Role</span>
+            </div>
+            <button class="btn secondary small logout-btn" onclick="handleLogout()">Logout</button>
+            <p class="countdown" id="countdown"></p>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Dashboard Tab -->
+        <section id="dashboard" class="tab-content active">
+            <header class="page-header">
+                <h2>Operations Dashboard</h2>
+                <p>Welcome back, Joi</p>
+            </header>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-info">
+                        <h3>Total Members</h3>
+                        <p class="stat-number" id="total-members">0</p>
+                        <span class="stat-label">of 24 capacity</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">💰</div>
+                    <div class="stat-info">
+                        <h3>Monthly MRR</h3>
+                        <p class="stat-number" id="total-mrr">$0</p>
+                        <span class="stat-label">target: $70,500</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📅</div>
+                    <div class="stat-info">
+                        <h3>This Week</h3>
+                        <p class="stat-number" id="weekly-sessions">0</p>
+                        <span class="stat-label">sessions booked</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📈</div>
+                    <div class="stat-info">
+                        <h3>Utilization</h3>
+                        <p class="stat-number" id="utilization">0%</p>
+                        <span class="stat-label">calendar usage</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+                <div class="card">
+                    <h3>Upcoming Sessions</h3>
+                    <div id="upcoming-sessions" class="session-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Recent Activity</h3>
+                    <div id="activity-feed" class="activity-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Revenue by Tier</h3>
+                <div class="tier-breakdown">
+                    <div class="tier-bar">
+                        <span class="tier-label">Residency ($5,000)</span>
+                        <div class="bar-container">
+                            <div class="bar residency" id="bar-residency" style="width: 0%"></div>
+                        </div>
+                        <span class="tier-count" id="count-residency">0/4</span>
+                    </div>
+                    <div class="tier-bar">
+                        <span class="tier-label">Member ($3,500)</span>
+                        <div class="bar-container">
+                            <div class="bar member" id="bar-member" style="width: 0%"></div>
+                        </div>
+                        <span class="tier-count" id="count-member">0/5</span>
+                    </div>
+                    <div class="tier-bar">
+                        <span class="tier-label">Session ($2,200)</span>
+                        <div class="bar-container">
+                            <div class="bar session" id="bar-session" style="width: 0%"></div>
+                        </div>
+                        <span class="tier-count" id="count-session">0/15</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CRM Tab -->
+        <section id="crm" class="tab-content">
+            <header class="page-header">
+                <h2>Member CRM</h2>
+                <button class="btn primary" onclick="openModal('add-member-modal')">+ Add Member</button>
+            </header>
+
+            <div class="filters">
+                <input type="text" id="member-search" placeholder="Search members..." onkeyup="filterMembers()">
+                <select id="tier-filter" onchange="filterMembers()">
+                    <option value="all">All Tiers</option>
+                    <option value="Residency">Residency</option>
+                    <option value="Member">Member</option>
+                    <option value="Session">Session</option>
+                </select>
+                <select id="status-filter" onchange="filterMembers()">
+                    <option value="all">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Paused">Paused</option>
+                </select>
+            </div>
+
+            <div class="table-container">
+                <table id="members-table">
+                    <thead>
+                        <tr>
+                            <th>Member</th>
+                            <th>Tier</th>
+                            <th>Status</th>
+                            <th>Hours Used</th>
+                            <th>Monthly Rate</th>
+                            <th>Start Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="members-tbody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Bookings Tab -->
+        <section id="bookings" class="tab-content">
+            <header class="page-header">
+                <h2>Booking Management</h2>
+                <button class="btn primary" onclick="openModal('add-booking-modal')">+ New Booking</button>
+            </header>
+
+            <div class="booking-views">
+                <button class="view-btn active" onclick="switchBookingView('calendar')">Calendar View</button>
+                <button class="view-btn" onclick="switchBookingView('list')">List View</button>
+            </div>
+
+            <div id="calendar-view" class="calendar-container">
+                <div class="calendar-header">
+                    <button onclick="changeMonth(-1)">←</button>
+                    <h3 id="calendar-month">February 2026</h3>
+                    <button onclick="changeMonth(1)">→</button>
+                </div>
+                <div class="calendar-grid">
+                    <div class="calendar-day-header">Sun</div>
+                    <div class="calendar-day-header">Mon</div>
+                    <div class="calendar-day-header">Tue</div>
+                    <div class="calendar-day-header">Wed</div>
+                    <div class="calendar-day-header">Thu</div>
+                    <div class="calendar-day-header">Fri</div>
+                    <div class="calendar-day-header">Sat</div>
+                    <div id="calendar-days"></div>
+                </div>
+            </div>
+
+            <div id="list-view" class="booking-list" style="display: none;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Member</th>
+                            <th>Hours</th>
+                            <th>Guests</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bookings-tbody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- SMS Tab -->
+        <section id="sms" class="tab-content">
+            <header class="page-header">
+                <h2>SMS Automation</h2>
+            </header>
+
+            <div class="sms-grid">
+                <div class="card">
+                    <h3>Quick Send</h3>
+                    <form id="sms-form" onsubmit="sendSMS(event)">
+                        <div class="form-group">
+                            <label>Recipients</label>
+                            <select id="sms-recipients" multiple>
+                                <option value="all">All Members</option>
+                                <option value="residency">Residency Tier</option>
+                                <option value="member">Member Tier</option>
+                                <option value="session">Session Tier</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Message</label>
+                            <textarea id="sms-message" rows="4" maxlength="160" placeholder="Type your message..."></textarea>
+                            <span class="char-count"><span id="sms-char-count">0</span>/160</span>
+                        </div>
+                        <button type="submit" class="btn primary">Send SMS</button>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <h3>Automated Messages</h3>
+                    <div class="automation-list">
+                        <div class="automation-item">
+                            <div class="automation-info">
+                                <h4>Session Reminder</h4>
+                                <p>Sent 24 hours before session</p>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="automation-item">
+                            <div class="automation-info">
+                                <h4>Guest Registration Reminder</h4>
+                                <p>Sent 48 hours before session</p>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="automation-item">
+                            <div class="automation-info">
+                                <h4>Payment Failed Alert</h4>
+                                <p>Sent immediately on failure</p>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="automation-item">
+                            <div class="automation-info">
+                                <h4>Welcome Message</h4>
+                                <p>Sent on membership activation</p>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card full-width">
+                    <h3>Message Templates</h3>
+                    <div class="template-grid">
+                        <div class="template-card" onclick="loadTemplate('reminder')">
+                            <h4>Session Reminder</h4>
+                            <p>Hey {name}, reminder: you're booked at Torch tomorrow at {time}. See you then.</p>
+                        </div>
+                        <div class="template-card" onclick="loadTemplate('guest')">
+                            <h4>Guest Registration</h4>
+                            <p>Hi {name}, please submit your guest list for your {date} session. Reply with names or text "none".</p>
+                        </div>
+                        <div class="template-card" onclick="loadTemplate('welcome')">
+                            <h4>Welcome</h4>
+                            <p>Welcome to Torch ATL, {name}. Your access code is {code}. Book your first session at torchatl.com/book</p>
+                        </div>
+                        <div class="template-card" onclick="loadTemplate('payment')">
+                            <h4>Payment Issue</h4>
+                            <p>Hi {name}, we couldn't process your membership payment. Please update your card to keep your access active.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card full-width">
+                    <h3>Recent SMS History</h3>
+                    <div id="sms-history" class="history-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Email Tab -->
+        <section id="email" class="tab-content">
+            <header class="page-header">
+                <h2>Email Blast</h2>
+            </header>
+
+            <div class="email-grid">
+                <div class="card email-composer">
+                    <h3>Compose Email</h3>
+                    <form id="email-form" onsubmit="sendEmail(event)">
+                        <div class="form-group">
+                            <label>Recipients</label>
+                            <select id="email-recipients">
+                                <option value="all">All Members (24)</option>
+                                <option value="residency">Residency Tier (4)</option>
+                                <option value="member">Member Tier (5)</option>
+                                <option value="session">Session Tier (15)</option>
+                                <option value="founding">Founding Members</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Subject</label>
+                            <input type="text" id="email-subject" placeholder="Email subject...">
+                        </div>
+                        <div class="form-group">
+                            <label>Message</label>
+                            <div class="editor-toolbar">
+                                <button type="button" onclick="formatText('bold')"><b>B</b></button>
+                                <button type="button" onclick="formatText('italic')"><i>I</i></button>
+                                <button type="button" onclick="formatText('underline')"><u>U</u></button>
+                                <span class="separator">|</span>
+                                <button type="button" onclick="insertVariable('{name}')">Name</button>
+                                <button type="button" onclick="insertVariable('{tier}')">Tier</button>
+                                <button type="button" onclick="insertVariable('{hours_remaining}')">Hours</button>
+                            </div>
+                            <div id="email-body" class="email-editor" contenteditable="true"></div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn secondary" onclick="previewEmail()">Preview</button>
+                            <button type="button" class="btn secondary" onclick="saveDraft()">Save Draft</button>
+                            <button type="submit" class="btn primary">Send Email</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <h3>Email Templates</h3>
+                    <div class="email-template-list">
+                        <div class="email-template" onclick="loadEmailTemplate('welcome')">
+                            <h4>Welcome to Torch ATL</h4>
+                            <p>New member onboarding email</p>
+                        </div>
+                        <div class="email-template" onclick="loadEmailTemplate('credentials')">
+                            <h4>Your Credentials Are Ready</h4>
+                            <p>Access code and booking instructions</p>
+                        </div>
+                        <div class="email-template" onclick="loadEmailTemplate('monthly')">
+                            <h4>Monthly Update</h4>
+                            <p>Hours used, upcoming availability</p>
+                        </div>
+                        <div class="email-template" onclick="loadEmailTemplate('camp')">
+                            <h4>Camp Announcement</h4>
+                            <p>Writing camp scheduling</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card full-width">
+                    <h3>Scheduled & Sent Emails</h3>
+                    <div class="email-tabs">
+                        <button class="email-tab active" onclick="switchEmailTab('sent')">Sent</button>
+                        <button class="email-tab" onclick="switchEmailTab('scheduled')">Scheduled</button>
+                        <button class="email-tab" onclick="switchEmailTab('drafts')">Drafts</button>
+                    </div>
+                    <div id="email-history" class="email-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Engineers Tab (Admin) -->
+        <section id="engineers" class="tab-content admin-only">
+            <header class="page-header">
+                <h2>Engineer Management</h2>
+                <button class="btn primary" onclick="openModal('add-engineer-modal')">+ Add Engineer</button>
+            </header>
+
+            <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 24px;">
+                <div class="stat-card">
+                    <div class="stat-icon">🎛️</div>
+                    <div class="stat-info">
+                        <h3>Active Engineers</h3>
+                        <p class="stat-number" id="active-engineers-count">0</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📅</div>
+                    <div class="stat-info">
+                        <h3>Sessions Today</h3>
+                        <p class="stat-number" id="engineer-sessions-today">0</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⏳</div>
+                    <div class="stat-info">
+                        <h3>Pending Requests</h3>
+                        <p class="stat-number" id="pending-engineer-requests">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table id="engineers-table">
+                    <thead>
+                        <tr>
+                            <th>Engineer</th>
+                            <th>Role</th>
+                            <th>Specialties</th>
+                            <th>Status</th>
+                            <th>Rate</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="engineers-tbody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Session Reports Review (Admin) -->
+        <section id="reports-review" class="tab-content admin-only">
+            <header class="page-header">
+                <h2>Session Reports Review</h2>
+            </header>
+
+            <div class="filters" style="margin-bottom: 20px;">
+                <select id="report-status-filter" onchange="filterReports()">
+                    <option value="all">All Reports</option>
+                    <option value="submitted">Pending Review</option>
+                    <option value="reviewed">Reviewed</option>
+                    <option value="draft">Drafts</option>
+                </select>
+                <select id="report-engineer-filter" onchange="filterReports()">
+                    <option value="all">All Engineers</option>
+                </select>
+            </div>
+
+            <div id="reports-list" class="reports-grid">
+                <!-- Populated by JS -->
+            </div>
+        </section>
+
+        <!-- My Sessions (Engineer) -->
+        <section id="my-sessions" class="tab-content engineer-only">
+            <header class="page-header">
+                <h2>My Sessions</h2>
+            </header>
+
+            <div class="engineer-calendar-container">
+                <div class="calendar-container" style="margin-bottom: 24px;">
+                    <div class="calendar-header">
+                        <button onclick="changeEngineerMonth(-1)">←</button>
+                        <h3 id="engineer-calendar-month">February 2026</h3>
+                        <button onclick="changeEngineerMonth(1)">→</button>
+                    </div>
+                    <div class="calendar-grid">
+                        <div class="calendar-day-header">Sun</div>
+                        <div class="calendar-day-header">Mon</div>
+                        <div class="calendar-day-header">Tue</div>
+                        <div class="calendar-day-header">Wed</div>
+                        <div class="calendar-day-header">Thu</div>
+                        <div class="calendar-day-header">Fri</div>
+                        <div class="calendar-day-header">Sat</div>
+                        <div id="engineer-calendar-days"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Upcoming Sessions</h3>
+                    <div id="engineer-upcoming-sessions" class="session-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Pending Requests (Engineer) -->
+        <section id="pending-requests" class="tab-content engineer-only">
+            <header class="page-header">
+                <h2>Pending Requests</h2>
+                <p>Accept or decline session assignments</p>
+            </header>
+
+            <div id="pending-requests-list" class="pending-requests-grid">
+                <!-- Populated by JS -->
+            </div>
+        </section>
+
+        <!-- My Reports (Engineer) -->
+        <section id="my-reports" class="tab-content engineer-only">
+            <header class="page-header">
+                <h2>Session Reports</h2>
+                <p>Submit reports for completed sessions</p>
+            </header>
+
+            <div class="reports-tabs">
+                <button class="report-tab active" onclick="switchReportTab('pending')">Pending Reports</button>
+                <button class="report-tab" onclick="switchReportTab('submitted')">Submitted</button>
+            </div>
+
+            <div id="my-reports-list" class="reports-grid">
+                <!-- Populated by JS -->
+            </div>
+        </section>
+
+        <!-- Settings Tab -->
+        <section id="settings" class="tab-content admin-only">
+            <header class="page-header">
+                <h2>Settings</h2>
+            </header>
+
+            <div class="settings-grid">
+                <div class="card">
+                    <h3>Membership Tiers</h3>
+                    <div class="tier-settings">
+                        <div class="tier-setting">
+                            <div class="tier-info">
+                                <h4>Residency</h4>
+                                <p>120 hrs/month • Cap: 4</p>
+                            </div>
+                            <div class="tier-price">$5,000/mo</div>
+                        </div>
+                        <div class="tier-setting">
+                            <div class="tier-info">
+                                <h4>Member</h4>
+                                <p>64 hrs/month • Cap: 5</p>
+                            </div>
+                            <div class="tier-price">$3,500/mo</div>
+                        </div>
+                        <div class="tier-setting">
+                            <div class="tier-info">
+                                <h4>Session</h4>
+                                <p>32 hrs/month • Cap: 15</p>
+                            </div>
+                            <div class="tier-price">$2,200/mo</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Camp Pricing</h3>
+                    <div class="camp-settings">
+                        <div class="camp-setting">
+                            <span>3-Day Camp</span>
+                            <span class="price">$3,000</span>
+                        </div>
+                        <div class="camp-setting">
+                            <span>5-Day Camp</span>
+                            <span class="price">$5,000</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card full-width">
+                    <h3>Square Payment Setup</h3>
+                    <p class="card-subtitle">Configure Square to accept membership payments and subscriptions.</p>
+                    <form id="square-setup-form" onsubmit="saveSquareConfig(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Application ID</label>
+                                <input type="text" id="square-app-id" placeholder="sq0idp-xxxxxxxxxxxxx">
+                                <span class="field-help">From Square Developer Dashboard</span>
+                            </div>
+                            <div class="form-group">
+                                <label>Access Token</label>
+                                <input type="password" id="square-access-token" placeholder="EAAAxxxxxxxxxxxxxxxx">
+                                <span class="field-help">Keep this secret!</span>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Location ID</label>
+                                <input type="text" id="square-location-id" placeholder="Lxxxxxxxxxxxxxxx">
+                                <span class="field-help">Your business location</span>
+                            </div>
+                            <div class="form-group">
+                                <label>Environment</label>
+                                <select id="square-environment">
+                                    <option value="sandbox">Sandbox (Testing)</option>
+                                    <option value="production">Production (Live)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-actions" style="margin-top: 1rem;">
+                            <button type="button" class="btn secondary" onclick="testSquareConnection()">Test Connection</button>
+                            <button type="submit" class="btn primary">Save Configuration</button>
+                        </div>
+                        <div id="square-status" class="status-message" style="margin-top: 1rem; display: none;"></div>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <h3>Square Products</h3>
+                    <p class="card-subtitle">Your membership tiers in Square</p>
+                    <div class="product-list">
+                        <div class="product-item">
+                            <span class="product-name">Residency</span>
+                            <span class="product-price">$5,000/mo</span>
+                            <button class="btn small" onclick="syncProductToSquare('residency')">Sync</button>
+                        </div>
+                        <div class="product-item">
+                            <span class="product-name">Member</span>
+                            <span class="product-price">$3,500/mo</span>
+                            <button class="btn small" onclick="syncProductToSquare('member')">Sync</button>
+                        </div>
+                        <div class="product-item">
+                            <span class="product-name">Session</span>
+                            <span class="product-price">$2,200/mo</span>
+                            <button class="btn small" onclick="syncProductToSquare('session')">Sync</button>
+                        </div>
+                        <div class="product-item">
+                            <span class="product-name">3-Day Camp</span>
+                            <span class="product-price">$3,000</span>
+                            <button class="btn small" onclick="syncProductToSquare('camp3Day')">Sync</button>
+                        </div>
+                        <div class="product-item">
+                            <span class="product-name">5-Day Camp</span>
+                            <span class="product-price">$5,000</span>
+                            <button class="btn small" onclick="syncProductToSquare('camp5Day')">Sync</button>
+                        </div>
+                    </div>
+                    <button class="btn primary" style="margin-top: 1rem; width: 100%;" onclick="syncAllProductsToSquare()">Sync All Products</button>
+                </div>
+
+                <div class="card">
+                    <h3>Integrations</h3>
+                    <div class="integration-list">
+                        <div class="integration-item">
+                            <span class="integration-name">Square Payments</span>
+                            <span class="integration-status" id="square-integration-status">Not Configured</span>
+                        </div>
+                        <div class="integration-item">
+                            <span class="integration-name">Google Calendar</span>
+                            <span class="integration-status pending">Not Connected</span>
+                        </div>
+                        <div class="integration-item">
+                            <span class="integration-name">Twilio SMS</span>
+                            <span class="integration-status pending">Not Connected</span>
+                        </div>
+                        <div class="integration-item">
+                            <span class="integration-name">Loops Email</span>
+                            <span class="integration-status pending">Not Connected</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>AI Agents</h3>
+                    <div class="agent-list">
+                        <div class="agent-item">
+                            <div class="agent-info">
+                                <h4>Torch Concierge AI</h4>
+                                <p>Handles inquiries, bookings, FAQ</p>
+                            </div>
+                            <span class="agent-status active">Active</span>
+                        </div>
+                        <div class="agent-item">
+                            <div class="agent-info">
+                                <h4>Torch Booking Manager</h4>
+                                <p>Calendar, conflicts, capacity</p>
+                            </div>
+                            <span class="agent-status active">Active</span>
+                        </div>
+                        <div class="agent-item">
+                            <div class="agent-info">
+                                <h4>Torch Billing Coordinator</h4>
+                                <p>Payments, dunning, overages</p>
+                            </div>
+                            <span class="agent-status pending">Pending</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Add Member Modal -->
+    <div id="add-member-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Member</h3>
+                <button class="close-btn" onclick="closeModal('add-member-modal')">&times;</button>
+            </div>
+            <form onsubmit="addMember(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="new-member-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="new-member-email" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="tel" id="new-member-phone" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Tier</label>
+                        <select id="new-member-tier" required>
+                            <option value="Residency">Residency ($5,000/mo)</option>
+                            <option value="Member">Member ($3,500/mo)</option>
+                            <option value="Session">Session ($2,200/mo)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Company/Label</label>
+                        <input type="text" id="new-member-company">
+                    </div>
+                    <div class="form-group">
+                        <label>Founding Member</label>
+                        <select id="new-member-founding">
+                            <option value="yes">Yes (15% discount)</option>
+                            <option value="no">No</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="new-member-notes" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn secondary" onclick="closeModal('add-member-modal')">Cancel</button>
+                    <button type="submit" class="btn primary">Add Member</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Booking Modal -->
+    <div id="add-booking-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>New Booking</h3>
+                <button class="close-btn" onclick="closeModal('add-booking-modal')">&times;</button>
+            </div>
+            <form onsubmit="addBooking(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Member</label>
+                        <select id="booking-member" required>
+                            <!-- Populated by JS -->
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="booking-date" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Start Time</label>
+                        <input type="time" id="booking-start" required>
+                    </div>
+                    <div class="form-group">
+                        <label>End Time</label>
+                        <input type="time" id="booking-end" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Number of Guests</label>
+                        <input type="number" id="booking-guests" min="0" max="8" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Session Type</label>
+                        <select id="booking-type">
+                            <option value="Recording">Recording</option>
+                            <option value="Writing">Writing</option>
+                            <option value="Meeting">Meeting</option>
+                            <option value="Camp">Camp</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Guest Names (if any)</label>
+                    <textarea id="booking-guest-names" rows="2" placeholder="Enter guest names, one per line"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn secondary" onclick="closeModal('add-booking-modal')">Cancel</button>
+                    <button type="submit" class="btn primary">Create Booking</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Engineer Modal -->
+    <div id="add-engineer-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Engineer</h3>
+                <button class="close-btn" onclick="closeModal('add-engineer-modal')">&times;</button>
+            </div>
+            <form onsubmit="addEngineer(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="new-engineer-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="new-engineer-email" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="tel" id="new-engineer-phone">
+                    </div>
+                    <div class="form-group">
+                        <label>Role</label>
+                        <select id="new-engineer-role" required>
+                            <option value="Recording Engineer">Recording Engineer</option>
+                            <option value="Lead Engineer">Lead Engineer</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Hourly Rate ($)</label>
+                        <input type="number" id="new-engineer-rate" value="60" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Access Code</label>
+                        <input type="text" id="new-engineer-code" placeholder="Auto-generated if empty">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Specialties</label>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" value="Recording" checked> Recording</label>
+                        <label><input type="checkbox" value="Mixing"> Mixing</label>
+                        <label><input type="checkbox" value="Mastering"> Mastering</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Bio</label>
+                    <textarea id="new-engineer-bio" rows="3" placeholder="Engineer bio for member portal..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn secondary" onclick="closeModal('add-engineer-modal')">Cancel</button>
+                    <button type="submit" class="btn primary">Add Engineer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Session Report Modal -->
+    <div id="session-report-modal" class="modal">
+        <div class="modal-content wide">
+            <div class="modal-header">
+                <h3>Session Report</h3>
+                <button class="close-btn" onclick="closeModal('session-report-modal')">&times;</button>
+            </div>
+            <form onsubmit="submitSessionReport(event)">
+                <input type="hidden" id="report-booking-id">
+
+                <div class="report-session-info">
+                    <div class="info-row">
+                        <span class="info-label">Member:</span>
+                        <span id="report-member-name">--</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Date:</span>
+                        <span id="report-session-date">--</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Time:</span>
+                        <span id="report-session-time">--</span>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Actual Start Time</label>
+                        <input type="time" id="report-actual-start" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Actual End Time</label>
+                        <input type="time" id="report-actual-end" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Work Type</label>
+                        <select id="report-work-type">
+                            <option value="Recording">Recording</option>
+                            <option value="Mixing">Mixing</option>
+                            <option value="Mastering">Mastering</option>
+                            <option value="Writing">Writing</option>
+                            <option value="Meeting">Meeting</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Project Name</label>
+                        <input type="text" id="report-project-name" placeholder="Album/Single name">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Tracks Worked (one per line)</label>
+                    <textarea id="report-tracks" rows="3" placeholder="Track 1 - Song Name&#10;Track 2 - Song Name"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Equipment Used</label>
+                    <input type="text" id="report-equipment" placeholder="Neumann U87, SSL Console, Pro Tools...">
+                </div>
+
+                <div class="form-group">
+                    <label>Session Quality</label>
+                    <div class="rating-input">
+                        <span class="star" data-value="1">★</span>
+                        <span class="star" data-value="2">★</span>
+                        <span class="star" data-value="3">★</span>
+                        <span class="star" data-value="4">★</span>
+                        <span class="star" data-value="5">★</span>
+                    </div>
+                    <input type="hidden" id="report-quality" value="3">
+                </div>
+
+                <div class="form-group">
+                    <label>Session Notes</label>
+                    <textarea id="report-notes" rows="4" placeholder="How did the session go? Any notable achievements?"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Issues Reported</label>
+                    <textarea id="report-issues" rows="2" placeholder="Any equipment issues or problems?"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="report-followup">
+                        Follow-up needed
+                    </label>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn secondary" onclick="saveReportDraft()">Save Draft</button>
+                    <button type="submit" class="btn primary">Submit Report</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- View Report Modal -->
+    <div id="view-report-modal" class="modal">
+        <div class="modal-content wide">
+            <div class="modal-header">
+                <h3>Session Report Details</h3>
+                <button class="close-btn" onclick="closeModal('view-report-modal')">&times;</button>
+            </div>
+            <div id="view-report-content" class="report-view-content">
+                <!-- Populated by JS -->
+            </div>
+            <div class="form-actions">
+                <button class="btn secondary" onclick="closeModal('view-report-modal')">Close</button>
+                <button class="btn primary admin-only" id="mark-reviewed-btn" onclick="markReportReviewed()">Mark as Reviewed</button>
+            </div>
+        </div>
+    </div>
+
+    </div><!-- End app-container -->
+
+    <!-- Toast Notifications -->
+    <div id="toast-container"></div>
+
+    <!-- Email Preview Modal -->
+    <div id="email-preview-modal" class="modal">
+        <div class="modal-content wide">
+            <div class="modal-header">
+                <h3>Email Preview</h3>
+                <button class="close-btn" onclick="closeModal('email-preview-modal')">&times;</button>
+            </div>
+            <div id="email-preview-content" class="email-preview">
+                <!-- Preview content -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Layer -->
+    <script src="data.js"></script>
+
+    <!-- Backend Data Layer -->
+    <script src="storage.js"></script>
+    <script src="api.js"></script>
+    <script src="automation.js"></script>
+    <script src="icloud-sync.js"></script>
+    <script src="square-config.js"></script>
+
+    <!-- Square Web Payments SDK -->
+    <script src="https://sandbox.web.squarecdn.com/v1/square.js"></script>
+
+    <!-- Initialize Backend -->
+    <script>
+        // Initialize backend data layer on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize storage layer (loads saved data)
+            TorchStorage.init();
+
+            // Initialize API layer
+            TorchAPI.init();
+
+            // Initialize automation engine
+            TorchAutomation.init();
+
+            // Initialize iCloud sync
+            TorchiCloudSync.init();
+
+            // Initialize Square payments
+            if (window.TorchSquare) {
+                TorchSquare.init();
+            }
+
+            console.log('[TORCH ATL] Backend data layer initialized');
+
+            // Listen for webhook events
+            window.addEventListener('torch-webhook', (e) => {
+                console.log('[TORCH ATL] Webhook event:', e.detail);
+            });
+
+            // Listen for automation events
+            window.addEventListener('torch-automation', (e) => {
+                console.log('[TORCH ATL] Automation event:', e.detail);
+            });
+
+            // Listen for sync events
+            window.addEventListener('torch-icloud-sync', (e) => {
+                console.log('[TORCH ATL] iCloud sync event:', e.detail);
+            });
+        });
+    </script>
+
+    <!-- Application Logic -->
+    <script src="app.js"></script>
+</body>
+</html>

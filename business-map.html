@@ -1,0 +1,2120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TORCH ATL - Business Map & 10X Growth Strategy</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --bg-card: #141414;
+            --bg-hover: #1a1a1a;
+            --border: #2a2a2a;
+            --gold: #D4AF37;
+            --gold-dim: rgba(212, 175, 55, 0.2);
+            --text: #ffffff;
+            --text-dim: #888;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --blue: #3b82f6;
+            --purple: #8b5cf6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Header */
+        .header {
+            padding: 24px 40px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background: var(--bg);
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .logo h1 {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--gold);
+            letter-spacing: 2px;
+        }
+
+        .logo span {
+            font-size: 14px;
+            color: var(--text-dim);
+        }
+
+        .header-right {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .metric-pill {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+        }
+
+        .metric-pill .value {
+            color: var(--gold);
+            font-weight: 600;
+        }
+
+        /* Navigation Tabs */
+        .nav-tabs {
+            display: flex;
+            gap: 4px;
+            padding: 16px 40px;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+        }
+
+        .nav-tab {
+            padding: 10px 20px;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            color: var(--text-dim);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .nav-tab:hover {
+            background: var(--bg-hover);
+            color: var(--text);
+        }
+
+        .nav-tab.active {
+            background: var(--gold);
+            color: #000;
+            border-color: var(--gold);
+        }
+
+        /* Main Content */
+        .main {
+            padding: 40px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        .section-title {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .section-subtitle {
+            color: var(--text-dim);
+            font-size: 16px;
+            margin-bottom: 40px;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card h3 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .card-badge {
+            font-size: 12px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+
+        .badge-gold {
+            background: var(--gold-dim);
+            color: var(--gold);
+        }
+
+        .badge-success {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success);
+        }
+
+        .badge-blue {
+            background: rgba(59, 130, 246, 0.2);
+            color: var(--blue);
+        }
+
+        /* Grid Layouts */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+
+        .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+        }
+
+        /* Revenue Flow Diagram */
+        .flow-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 40px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .flow-title {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .flow-title h2 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .flow-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 24px;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+        }
+
+        .flow-node {
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 24px;
+            text-align: center;
+            min-width: 160px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .flow-node:hover {
+            border-color: var(--gold);
+            transform: translateY(-4px);
+        }
+
+        .flow-node.highlight {
+            border-color: var(--gold);
+            box-shadow: 0 0 30px rgba(212, 175, 55, 0.3);
+        }
+
+        .flow-node .icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+
+        .flow-node .label {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .flow-node .value {
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        .flow-node .amount {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--gold);
+            margin-top: 8px;
+        }
+
+        .flow-arrow {
+            font-size: 24px;
+            color: var(--gold);
+        }
+
+        .flow-arrow.down {
+            transform: rotate(90deg);
+        }
+
+        /* Revenue Breakdown */
+        .revenue-tier {
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            background: var(--bg);
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .tier-color {
+            width: 8px;
+            height: 48px;
+            border-radius: 4px;
+            margin-right: 16px;
+        }
+
+        .tier-residency { background: var(--gold); }
+        .tier-member { background: var(--blue); }
+        .tier-session { background: var(--purple); }
+        .tier-camps { background: var(--success); }
+        .tier-expansion { background: var(--warning); }
+
+        .tier-info {
+            flex: 1;
+        }
+
+        .tier-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .tier-details {
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+
+        .tier-revenue {
+            text-align: right;
+        }
+
+        .tier-revenue .current {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--gold);
+        }
+
+        .tier-revenue .target {
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        /* Org Chart */
+        .org-chart {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 32px;
+        }
+
+        .org-level {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+
+        .org-node {
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            min-width: 200px;
+            transition: all 0.3s;
+        }
+
+        .org-node:hover {
+            border-color: var(--gold);
+        }
+
+        .org-node.ceo {
+            border-color: var(--gold);
+            min-width: 280px;
+        }
+
+        .org-node.ai {
+            border-style: dashed;
+            border-color: var(--purple);
+        }
+
+        .org-node.hire {
+            border-style: dashed;
+            opacity: 0.7;
+        }
+
+        .org-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--gold-dim);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin: 0 auto 12px;
+        }
+
+        .org-node.ai .org-avatar {
+            background: rgba(139, 92, 246, 0.2);
+        }
+
+        .org-node.hire .org-avatar {
+            background: var(--border);
+        }
+
+        .org-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .org-role {
+            font-size: 13px;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+        }
+
+        .org-tag {
+            display: inline-block;
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .tag-human {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success);
+        }
+
+        .tag-ai {
+            background: rgba(139, 92, 246, 0.2);
+            color: var(--purple);
+        }
+
+        .tag-hire {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+
+        .org-connector {
+            width: 2px;
+            height: 32px;
+            background: var(--border);
+        }
+
+        .org-connector-h {
+            height: 2px;
+            background: var(--border);
+            flex: 1;
+            max-width: 100px;
+        }
+
+        /* Systems Grid */
+        .system-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+
+        .system-card:hover {
+            border-color: var(--gold);
+        }
+
+        .system-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: var(--gold-dim);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+
+        .system-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .system-desc {
+            font-size: 13px;
+            color: var(--text-dim);
+            margin-bottom: 12px;
+        }
+
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .status-active { background: var(--success); }
+        .status-pending { background: var(--warning); }
+        .status-planned { background: var(--text-dim); }
+
+        /* Growth Path */
+        .growth-timeline {
+            position: relative;
+            padding-left: 40px;
+        }
+
+        .growth-timeline::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, var(--gold), var(--purple));
+        }
+
+        .growth-phase {
+            position: relative;
+            margin-bottom: 40px;
+        }
+
+        .phase-marker {
+            position: absolute;
+            left: -40px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            border: 2px solid var(--gold);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .phase-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+        }
+
+        .phase-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .phase-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .phase-revenue {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--gold);
+        }
+
+        .phase-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .phase-item {
+            font-size: 13px;
+            padding: 6px 12px;
+            background: var(--bg);
+            border-radius: 6px;
+            color: var(--text-dim);
+        }
+
+        /* KPI Dashboard */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+
+        .kpi-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .kpi-card:hover {
+            border-color: var(--gold);
+        }
+
+        .kpi-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--gold);
+            margin-bottom: 4px;
+        }
+
+        .kpi-label {
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+
+        .kpi-change {
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .kpi-change.up { color: var(--success); }
+        .kpi-change.down { color: var(--danger); }
+
+        /* Ideas Board */
+        .ideas-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+
+        .idea-column {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+        }
+
+        .idea-column-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .idea-column-header .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .idea-column-header h4 {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .idea-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .idea-card:hover {
+            border-color: var(--gold);
+        }
+
+        .idea-card h5 {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .idea-card p {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-bottom: 12px;
+        }
+
+        .idea-tags {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .idea-tag {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            background: var(--border);
+            color: var(--text-dim);
+        }
+
+        .idea-tag.revenue { background: rgba(212, 175, 55, 0.2); color: var(--gold); }
+        .idea-tag.system { background: rgba(59, 130, 246, 0.2); color: var(--blue); }
+        .idea-tag.brand { background: rgba(139, 92, 246, 0.2); color: var(--purple); }
+
+        /* Print Styles */
+        @media print {
+            body { background: white; color: black; }
+            .nav-tabs { display: none; }
+            .section { display: block !important; page-break-after: always; }
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .grid-4 { grid-template-columns: repeat(2, 1fr); }
+            .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+            .ideas-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 768px) {
+            .main { padding: 20px; }
+            .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .ideas-grid { grid-template-columns: 1fr; }
+            .flow-row { flex-direction: column; }
+            .org-level { flex-direction: column; align-items: center; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            <h1>TORCH ATL</h1>
+            <span>Business Intelligence Map</span>
+        </div>
+        <div class="header-right">
+            <div class="metric-pill">Current MRR: <span class="value">$70,500</span></div>
+            <div class="metric-pill">10X Target: <span class="value">$705,000</span></div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="nav-tabs">
+        <button class="nav-tab active" onclick="showSection('overview')">Overview</button>
+        <button class="nav-tab" onclick="showSection('revenue')">Revenue Model</button>
+        <button class="nav-tab" onclick="showSection('org')">Org Structure</button>
+        <button class="nav-tab" onclick="showSection('systems')">Systems & Tech</button>
+        <button class="nav-tab" onclick="showSection('growth')">10X Growth Path</button>
+        <button class="nav-tab" onclick="showSection('ideas')">Ideas Board</button>
+        <button class="nav-tab" onclick="showSection('benchmarks')">Industry Benchmarks</button>
+        <button class="nav-tab" onclick="showSection('diversify')">Revenue Diversification</button>
+    </nav>
+
+    <main class="main">
+        <!-- OVERVIEW SECTION -->
+        <section id="overview" class="section active">
+            <h1 class="section-title">Business Overview</h1>
+            <p class="section-subtitle">Torch ATL - Atlanta's membership-only recording estate for serious creators</p>
+
+            <!-- KPIs -->
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-value">24</div>
+                    <div class="kpi-label">Member Capacity</div>
+                    <div class="kpi-change">4 + 5 + 15</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value">$70.5K</div>
+                    <div class="kpi-label">Monthly MRR</div>
+                    <div class="kpi-change up">At capacity</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value">$846K</div>
+                    <div class="kpi-label">Annual Revenue</div>
+                    <div class="kpi-change">Base memberships</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value">$1.2M+</div>
+                    <div class="kpi-label">Potential ARR</div>
+                    <div class="kpi-change up">With camps & overages</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value">Mar 15</div>
+                    <div class="kpi-label">Launch Date</div>
+                    <div class="kpi-change">2026</div>
+                </div>
+            </div>
+
+            <!-- Business Flow -->
+            <div class="flow-container">
+                <div class="flow-title">
+                    <h2>Business Value Flow</h2>
+                    <p style="color: var(--text-dim);">How Torch ATL creates and captures value</p>
+                </div>
+
+                <div class="flow-row">
+                    <div class="flow-node">
+                        <div class="icon">🎯</div>
+                        <div class="label">Lead Generation</div>
+                        <div class="value">Referrals, Social, Events</div>
+                    </div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-node">
+                        <div class="icon">📋</div>
+                        <div class="label">Application</div>
+                        <div class="value">Vetting & Approval</div>
+                    </div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-node highlight">
+                        <div class="icon">🔑</div>
+                        <div class="label">Membership</div>
+                        <div class="value">3 Tiers Available</div>
+                        <div class="amount">$2.2K-$5K/mo</div>
+                    </div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-node">
+                        <div class="icon">🎵</div>
+                        <div class="label">Sessions</div>
+                        <div class="value">32-120 hrs/month</div>
+                    </div>
+                </div>
+
+                <div class="flow-row">
+                    <div class="flow-node">
+                        <div class="icon">⭐</div>
+                        <div class="label">Premium Experience</div>
+                        <div class="value">Privacy, Quality, Service</div>
+                    </div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-node">
+                        <div class="icon">🔄</div>
+                        <div class="label">Retention</div>
+                        <div class="value">High-touch concierge</div>
+                    </div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-node">
+                        <div class="icon">📢</div>
+                        <div class="label">Referrals</div>
+                        <div class="value">Member network</div>
+                    </div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-node highlight">
+                        <div class="icon">📈</div>
+                        <div class="label">Growth</div>
+                        <div class="value">Scale & Expand</div>
+                        <div class="amount">10X Potential</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="grid-3">
+                <div class="card">
+                    <h3>Membership Tiers</h3>
+                    <div style="margin-top: 16px;">
+                        <div class="revenue-tier">
+                            <div class="tier-color tier-residency"></div>
+                            <div class="tier-info">
+                                <div class="tier-name">Residency</div>
+                                <div class="tier-details">120 hrs/mo • 4 spots</div>
+                            </div>
+                            <div class="tier-revenue">
+                                <div class="current">$20,000</div>
+                                <div class="target">$5,000 × 4</div>
+                            </div>
+                        </div>
+                        <div class="revenue-tier">
+                            <div class="tier-color tier-member"></div>
+                            <div class="tier-info">
+                                <div class="tier-name">Member</div>
+                                <div class="tier-details">64 hrs/mo • 5 spots</div>
+                            </div>
+                            <div class="tier-revenue">
+                                <div class="current">$17,500</div>
+                                <div class="target">$3,500 × 5</div>
+                            </div>
+                        </div>
+                        <div class="revenue-tier">
+                            <div class="tier-color tier-session"></div>
+                            <div class="tier-info">
+                                <div class="tier-name">Session</div>
+                                <div class="tier-details">32 hrs/mo • 15 spots</div>
+                            </div>
+                            <div class="tier-revenue">
+                                <div class="current">$33,000</div>
+                                <div class="target">$2,200 × 15</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Additional Revenue</h3>
+                    <div style="margin-top: 16px;">
+                        <div class="revenue-tier">
+                            <div class="tier-color tier-camps"></div>
+                            <div class="tier-info">
+                                <div class="tier-name">Writing Camps</div>
+                                <div class="tier-details">3-day ($3K) • 5-day ($5K)</div>
+                            </div>
+                            <div class="tier-revenue">
+                                <div class="current">+$20K</div>
+                                <div class="target">4 camps/mo</div>
+                            </div>
+                        </div>
+                        <div class="revenue-tier">
+                            <div class="tier-color tier-expansion"></div>
+                            <div class="tier-info">
+                                <div class="tier-name">Overage Hours</div>
+                                <div class="tier-details">$75/hr beyond allocation</div>
+                            </div>
+                            <div class="tier-revenue">
+                                <div class="current">+$5K</div>
+                                <div class="target">Variable</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Key Differentiators</h3>
+                    <div style="margin-top: 16px;">
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px;">
+                            <strong>🏠 Estate Privacy</strong>
+                            <p style="font-size: 13px; color: var(--text-dim); margin-top: 4px;">Not a commercial building - true creative sanctuary</p>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px;">
+                            <strong>👥 Curated Community</strong>
+                            <p style="font-size: 13px; color: var(--text-dim); margin-top: 4px;">Application-only, 24 member cap, quality control</p>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px;">
+                            <strong>🤖 AI-Powered Ops</strong>
+                            <p style="font-size: 13px; color: var(--text-dim); margin-top: 4px;">Automated booking, billing, concierge services</p>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px;">
+                            <strong>🎯 Artist-First Model</strong>
+                            <p style="font-size: 13px; color: var(--text-dim); margin-top: 4px;">Built by creators, for creators</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- REVENUE MODEL SECTION -->
+        <section id="revenue" class="section">
+            <h1 class="section-title">Revenue Model</h1>
+            <p class="section-subtitle">Multi-stream revenue architecture for sustainable growth</p>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Recurring Revenue (MRR)</h3>
+                        <span class="card-badge badge-gold">$70,500/mo</span>
+                    </div>
+
+                    <div class="revenue-tier">
+                        <div class="tier-color tier-residency"></div>
+                        <div class="tier-info">
+                            <div class="tier-name">Residency Tier</div>
+                            <div class="tier-details">$5,000/mo (Founding: $4,250) • 120 hrs • Cap: 4</div>
+                        </div>
+                        <div class="tier-revenue">
+                            <div class="current">$20,000</div>
+                            <div class="target">28% of MRR</div>
+                        </div>
+                    </div>
+
+                    <div class="revenue-tier">
+                        <div class="tier-color tier-member"></div>
+                        <div class="tier-info">
+                            <div class="tier-name">Member Tier</div>
+                            <div class="tier-details">$3,500/mo (Founding: $2,975) • 64 hrs • Cap: 5</div>
+                        </div>
+                        <div class="tier-revenue">
+                            <div class="current">$17,500</div>
+                            <div class="target">25% of MRR</div>
+                        </div>
+                    </div>
+
+                    <div class="revenue-tier">
+                        <div class="tier-color tier-session"></div>
+                        <div class="tier-info">
+                            <div class="tier-name">Session Tier</div>
+                            <div class="tier-details">$2,200/mo (Founding: $1,870) • 32 hrs • Cap: 15</div>
+                        </div>
+                        <div class="tier-revenue">
+                            <div class="current">$33,000</div>
+                            <div class="target">47% of MRR</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 24px; padding: 16px; background: var(--gold-dim); border-radius: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>Total Monthly MRR</strong>
+                                <p style="font-size: 13px; color: var(--text-dim);">At full capacity (24 members)</p>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 28px; font-weight: 700; color: var(--gold);">$70,500</div>
+                                <div style="font-size: 13px; color: var(--text-dim);">$846,000/year</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Variable Revenue</h3>
+                        <span class="card-badge badge-success">+$25K-50K/mo</span>
+                    </div>
+
+                    <div class="revenue-tier">
+                        <div class="tier-color tier-camps"></div>
+                        <div class="tier-info">
+                            <div class="tier-name">3-Day Writing Camps</div>
+                            <div class="tier-details">$3,000 per camp • Exclusive facility access</div>
+                        </div>
+                        <div class="tier-revenue">
+                            <div class="current">$12,000</div>
+                            <div class="target">4 camps/mo</div>
+                        </div>
+                    </div>
+
+                    <div class="revenue-tier">
+                        <div class="tier-color tier-camps"></div>
+                        <div class="tier-info">
+                            <div class="tier-name">5-Day Writing Camps</div>
+                            <div class="tier-details">$5,000 per camp • Full week lockout</div>
+                        </div>
+                        <div class="tier-revenue">
+                            <div class="current">$10,000</div>
+                            <div class="target">2 camps/mo</div>
+                        </div>
+                    </div>
+
+                    <div class="revenue-tier">
+                        <div class="tier-color tier-expansion"></div>
+                        <div class="tier-info">
+                            <div class="tier-name">Overage Hours</div>
+                            <div class="tier-details">$75/hr beyond monthly allocation</div>
+                        </div>
+                        <div class="tier-revenue">
+                            <div class="current">$5,000</div>
+                            <div class="target">~67 hrs</div>
+                        </div>
+                    </div>
+
+                    <div class="revenue-tier">
+                        <div class="tier-color tier-expansion"></div>
+                        <div class="tier-info">
+                            <div class="tier-name">Guest Engineer Services</div>
+                            <div class="tier-details">$100/hr with staff engineer</div>
+                        </div>
+                        <div class="tier-revenue">
+                            <div class="current">$3,000</div>
+                            <div class="target">30 hrs/mo</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 24px; padding: 16px; background: rgba(34, 197, 94, 0.15); border-radius: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>Total Variable Revenue</strong>
+                                <p style="font-size: 13px; color: var(--text-dim);">Estimated monthly addition</p>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 28px; font-weight: 700; color: var(--success);">+$30,000</div>
+                                <div style="font-size: 13px; color: var(--text-dim);">$360,000/year</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3>Revenue Projection Summary</h3>
+                </div>
+                <div class="grid-4">
+                    <div style="padding: 20px; background: var(--bg); border-radius: 12px; text-align: center;">
+                        <div style="font-size: 14px; color: var(--text-dim); margin-bottom: 8px;">Base MRR</div>
+                        <div style="font-size: 24px; font-weight: 700; color: var(--gold);">$70,500</div>
+                    </div>
+                    <div style="padding: 20px; background: var(--bg); border-radius: 12px; text-align: center;">
+                        <div style="font-size: 14px; color: var(--text-dim); margin-bottom: 8px;">+ Variable</div>
+                        <div style="font-size: 24px; font-weight: 700; color: var(--success);">$30,000</div>
+                    </div>
+                    <div style="padding: 20px; background: var(--bg); border-radius: 12px; text-align: center;">
+                        <div style="font-size: 14px; color: var(--text-dim); margin-bottom: 8px;">Total Monthly</div>
+                        <div style="font-size: 24px; font-weight: 700; color: var(--gold);">$100,500</div>
+                    </div>
+                    <div style="padding: 20px; background: var(--gold-dim); border-radius: 12px; text-align: center;">
+                        <div style="font-size: 14px; color: var(--gold); margin-bottom: 8px;">Annual Revenue</div>
+                        <div style="font-size: 24px; font-weight: 700; color: var(--gold);">$1.2M+</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ORG STRUCTURE SECTION -->
+        <section id="org" class="section">
+            <h1 class="section-title">Organization Structure</h1>
+            <p class="section-subtitle">Hybrid human + AI team for autonomous operations</p>
+
+            <div class="card">
+                <div class="org-chart">
+                    <!-- CEO Level -->
+                    <div class="org-level">
+                        <div class="org-node ceo">
+                            <div class="org-avatar">👑</div>
+                            <div class="org-name">Joi Coleman</div>
+                            <div class="org-role">CEO & Founder</div>
+                            <span class="org-tag tag-human">Owner</span>
+                        </div>
+                    </div>
+
+                    <div class="org-connector"></div>
+
+                    <!-- Management Level -->
+                    <div class="org-level">
+                        <div class="org-node hire">
+                            <div class="org-avatar">🏠</div>
+                            <div class="org-name">TBD</div>
+                            <div class="org-role">Concierge / House Manager</div>
+                            <span class="org-tag tag-hire">To Hire</span>
+                        </div>
+                        <div class="org-node ai">
+                            <div class="org-avatar">🤖</div>
+                            <div class="org-name">CARBON[6]</div>
+                            <div class="org-role">AI Operations Director</div>
+                            <span class="org-tag tag-ai">AI Agent</span>
+                        </div>
+                    </div>
+
+                    <div class="org-connector"></div>
+
+                    <!-- Operations Level -->
+                    <div class="org-level">
+                        <div class="org-node ai">
+                            <div class="org-avatar">💬</div>
+                            <div class="org-name">Torch Concierge</div>
+                            <div class="org-role">Inquiries & FAQ</div>
+                            <span class="org-tag tag-ai">AI Agent</span>
+                        </div>
+                        <div class="org-node ai">
+                            <div class="org-avatar">📅</div>
+                            <div class="org-name">Booking Manager</div>
+                            <div class="org-role">Calendar & Scheduling</div>
+                            <span class="org-tag tag-ai">AI Agent</span>
+                        </div>
+                        <div class="org-node ai">
+                            <div class="org-avatar">💰</div>
+                            <div class="org-name">Billing Coordinator</div>
+                            <div class="org-role">Payments & Invoicing</div>
+                            <span class="org-tag tag-ai">AI Agent</span>
+                        </div>
+                        <div class="org-node ai">
+                            <div class="org-avatar">📧</div>
+                            <div class="org-name">Comms Manager</div>
+                            <div class="org-role">Email & SMS</div>
+                            <span class="org-tag tag-ai">AI Agent</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3>Human Roles Needed</h3>
+                    <div style="margin-top: 16px;">
+                        <div style="padding: 16px; background: var(--bg); border-radius: 8px; margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong>Concierge / House Manager</strong>
+                                    <p style="font-size: 13px; color: var(--text-dim); margin-top: 4px;">On-site presence, member relations, facility management</p>
+                                </div>
+                                <span class="org-tag tag-hire">Priority Hire</span>
+                            </div>
+                        </div>
+                        <div style="padding: 16px; background: var(--bg); border-radius: 8px; margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong>Staff Engineer (Part-time)</strong>
+                                    <p style="font-size: 13px; color: var(--text-dim); margin-top: 4px;">Available for member sessions, adds revenue stream</p>
+                                </div>
+                                <span class="org-tag tag-hire">Phase 2</span>
+                            </div>
+                        </div>
+                        <div style="padding: 16px; background: var(--bg); border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong>Cleaning / Maintenance</strong>
+                                    <p style="font-size: 13px; color: var(--text-dim); margin-top: 4px;">Contract service, weekly deep clean</p>
+                                </div>
+                                <span class="org-tag" style="background: rgba(34, 197, 94, 0.2); color: var(--success);">Contract</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>AI Agent Responsibilities</h3>
+                    <div style="margin-top: 16px;">
+                        <div style="padding: 16px; background: var(--bg); border-radius: 8px; margin-bottom: 12px;">
+                            <strong>🤖 Torch Concierge AI</strong>
+                            <ul style="font-size: 13px; color: var(--text-dim); margin-top: 8px; padding-left: 20px;">
+                                <li>Answer member inquiries 24/7</li>
+                                <li>Handle booking requests</li>
+                                <li>FAQ and policy questions</li>
+                                <li>New member onboarding support</li>
+                            </ul>
+                        </div>
+                        <div style="padding: 16px; background: var(--bg); border-radius: 8px; margin-bottom: 12px;">
+                            <strong>📅 Booking Manager AI</strong>
+                            <ul style="font-size: 13px; color: var(--text-dim); margin-top: 8px; padding-left: 20px;">
+                                <li>Calendar management</li>
+                                <li>Conflict detection</li>
+                                <li>Hour tracking and alerts</li>
+                                <li>Session reminders</li>
+                            </ul>
+                        </div>
+                        <div style="padding: 16px; background: var(--bg); border-radius: 8px;">
+                            <strong>💰 Billing Coordinator AI</strong>
+                            <ul style="font-size: 13px; color: var(--text-dim); margin-top: 8px; padding-left: 20px;">
+                                <li>Monthly billing automation</li>
+                                <li>Payment failure handling</li>
+                                <li>Overage calculations</li>
+                                <li>Invoice generation</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SYSTEMS SECTION -->
+        <section id="systems" class="section">
+            <h1 class="section-title">Systems & Technology</h1>
+            <p class="section-subtitle">Tech stack powering autonomous operations</p>
+
+            <div class="grid-4">
+                <div class="system-card">
+                    <div class="system-icon">💳</div>
+                    <div class="system-name">Square Payments</div>
+                    <div class="system-desc">Subscriptions, one-time payments, invoicing</div>
+                    <div class="system-status">
+                        <span class="status-dot status-active"></span>
+                        <span>Configured</span>
+                    </div>
+                </div>
+
+                <div class="system-card">
+                    <div class="system-icon">👥</div>
+                    <div class="system-name">Operations Suite</div>
+                    <div class="system-desc">Member CRM, bookings, communications</div>
+                    <div class="system-status">
+                        <span class="status-dot status-active"></span>
+                        <span>Live</span>
+                    </div>
+                </div>
+
+                <div class="system-card">
+                    <div class="system-icon">⚡</div>
+                    <div class="system-name">n8n Workflows</div>
+                    <div class="system-desc">Business automation and integrations</div>
+                    <div class="system-status">
+                        <span class="status-dot status-active"></span>
+                        <span>5 Workflows</span>
+                    </div>
+                </div>
+
+                <div class="system-card">
+                    <div class="system-icon">☁️</div>
+                    <div class="system-name">iCloud Sync</div>
+                    <div class="system-desc">Cross-device data synchronization</div>
+                    <div class="system-status">
+                        <span class="status-dot status-active"></span>
+                        <span>Syncing</span>
+                    </div>
+                </div>
+
+                <div class="system-card">
+                    <div class="system-icon">📅</div>
+                    <div class="system-name">Cal.com</div>
+                    <div class="system-desc">Public booking calendar for members</div>
+                    <div class="system-status">
+                        <span class="status-dot status-pending"></span>
+                        <span>To Configure</span>
+                    </div>
+                </div>
+
+                <div class="system-card">
+                    <div class="system-icon">📱</div>
+                    <div class="system-name">Twilio SMS</div>
+                    <div class="system-desc">Automated text notifications</div>
+                    <div class="system-status">
+                        <span class="status-dot status-pending"></span>
+                        <span>To Configure</span>
+                    </div>
+                </div>
+
+                <div class="system-card">
+                    <div class="system-icon">📧</div>
+                    <div class="system-name">Loops / Resend</div>
+                    <div class="system-desc">Transactional & marketing email</div>
+                    <div class="system-status">
+                        <span class="status-dot status-pending"></span>
+                        <span>To Configure</span>
+                    </div>
+                </div>
+
+                <div class="system-card">
+                    <div class="system-icon">🔐</div>
+                    <div class="system-name">Access Control</div>
+                    <div class="system-desc">Smart locks with member codes</div>
+                    <div class="system-status">
+                        <span class="status-dot status-pending"></span>
+                        <span>To Install</span>
+                    </div>
+                </div>
+
+                <div class="system-card">
+                    <div class="system-icon">🤖</div>
+                    <div class="system-name">CARBON[6] SDK</div>
+                    <div class="system-desc">AI agent framework (17 agents)</div>
+                    <div class="system-status">
+                        <span class="status-dot status-active"></span>
+                        <span>Installed</span>
+                    </div>
+                </div>
+
+                <div class="system-card">
+                    <div class="system-icon">🦙</div>
+                    <div class="system-name">Ollama / Local AI</div>
+                    <div class="system-desc">Local LLM inference</div>
+                    <div class="system-status">
+                        <span class="status-dot status-pending"></span>
+                        <span>Model Needed</span>
+                    </div>
+                </div>
+
+                <div class="system-card">
+                    <div class="system-icon">📊</div>
+                    <div class="system-name">Notion Database</div>
+                    <div class="system-desc">Member records and documentation</div>
+                    <div class="system-status">
+                        <span class="status-dot status-pending"></span>
+                        <span>To Build</span>
+                    </div>
+                </div>
+
+                <div class="system-card">
+                    <div class="system-icon">📹</div>
+                    <div class="system-name">Security Cameras</div>
+                    <div class="system-desc">Property monitoring system</div>
+                    <div class="system-status">
+                        <span class="status-dot status-planned"></span>
+                        <span>Planned</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 24px;">
+                <h3>Data Flow Architecture</h3>
+                <div style="margin-top: 20px; padding: 24px; background: var(--bg); border-radius: 12px;">
+                    <div class="flow-row" style="margin-bottom: 0;">
+                        <div class="flow-node" style="min-width: 120px;">
+                            <div class="label">Member</div>
+                            <div class="value">Books Session</div>
+                        </div>
+                        <span class="flow-arrow">→</span>
+                        <div class="flow-node" style="min-width: 120px;">
+                            <div class="label">Cal.com</div>
+                            <div class="value">Captures</div>
+                        </div>
+                        <span class="flow-arrow">→</span>
+                        <div class="flow-node" style="min-width: 120px;">
+                            <div class="label">n8n</div>
+                            <div class="value">Processes</div>
+                        </div>
+                        <span class="flow-arrow">→</span>
+                        <div class="flow-node" style="min-width: 120px;">
+                            <div class="label">CRM</div>
+                            <div class="value">Updates</div>
+                        </div>
+                        <span class="flow-arrow">→</span>
+                        <div class="flow-node" style="min-width: 120px;">
+                            <div class="label">SMS/Email</div>
+                            <div class="value">Confirms</div>
+                        </div>
+                        <span class="flow-arrow">→</span>
+                        <div class="flow-node" style="min-width: 120px;">
+                            <div class="label">Square</div>
+                            <div class="value">Tracks Hours</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 10X GROWTH SECTION -->
+        <section id="growth" class="section">
+            <h1 class="section-title">10X Growth Path</h1>
+            <p class="section-subtitle">From $70K MRR to $700K+ MRR - The scaling roadmap</p>
+
+            <div class="kpi-grid" style="margin-bottom: 40px;">
+                <div class="kpi-card">
+                    <div class="kpi-value">$70.5K</div>
+                    <div class="kpi-label">Current MRR</div>
+                    <div class="kpi-change">1 Location</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value">$141K</div>
+                    <div class="kpi-label">Phase 2 MRR</div>
+                    <div class="kpi-change up">2X Growth</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value">$282K</div>
+                    <div class="kpi-label">Phase 3 MRR</div>
+                    <div class="kpi-change up">4X Growth</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value">$564K</div>
+                    <div class="kpi-label">Phase 4 MRR</div>
+                    <div class="kpi-change up">8X Growth</div>
+                </div>
+                <div class="kpi-card" style="background: var(--gold-dim);">
+                    <div class="kpi-value">$705K+</div>
+                    <div class="kpi-label">10X Target</div>
+                    <div class="kpi-change up">$8.4M ARR</div>
+                </div>
+            </div>
+
+            <div class="growth-timeline">
+                <!-- Phase 1 -->
+                <div class="growth-phase">
+                    <div class="phase-marker">1</div>
+                    <div class="phase-content">
+                        <div class="phase-header">
+                            <div>
+                                <div class="phase-title">Phase 1: Foundation (Now - Mar 2026)</div>
+                                <div style="color: var(--text-dim); font-size: 14px;">Launch & Prove the Model</div>
+                            </div>
+                            <div class="phase-revenue">$70,500/mo</div>
+                        </div>
+                        <div class="phase-items">
+                            <span class="phase-item">✓ Complete facility buildout</span>
+                            <span class="phase-item">✓ Operations Suite live</span>
+                            <span class="phase-item">✓ Square payments configured</span>
+                            <span class="phase-item">Hire Concierge/House Manager</span>
+                            <span class="phase-item">Sign founding members (24)</span>
+                            <span class="phase-item">Install access control</span>
+                            <span class="phase-item">Launch Derrick Milano partnership</span>
+                            <span class="phase-item">Host first writing camps</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phase 2 -->
+                <div class="growth-phase">
+                    <div class="phase-marker">2</div>
+                    <div class="phase-content">
+                        <div class="phase-header">
+                            <div>
+                                <div class="phase-title">Phase 2: Optimize (Apr 2026 - Dec 2026)</div>
+                                <div style="color: var(--text-dim); font-size: 14px;">Maximize Single Location + Add Revenue Streams</div>
+                            </div>
+                            <div class="phase-revenue">$140,000/mo</div>
+                        </div>
+                        <div class="phase-items">
+                            <span class="phase-item">Add staff engineer ($100/hr revenue)</span>
+                            <span class="phase-item">Increase camps to 8/month</span>
+                            <span class="phase-item">Launch Torch Publishing (sync royalties)</span>
+                            <span class="phase-item">Build waitlist (50+ applicants)</span>
+                            <span class="phase-item">Create Torch Producer Network</span>
+                            <span class="phase-item">Host exclusive industry events</span>
+                            <span class="phase-item">Launch member referral program</span>
+                            <span class="phase-item">Add premium equipment rentals</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phase 3 -->
+                <div class="growth-phase">
+                    <div class="phase-marker">3</div>
+                    <div class="phase-content">
+                        <div class="phase-header">
+                            <div>
+                                <div class="phase-title">Phase 3: Expand (2027)</div>
+                                <div style="color: var(--text-dim); font-size: 14px;">Second Location + Brand Licensing</div>
+                            </div>
+                            <div class="phase-revenue">$280,000/mo</div>
+                        </div>
+                        <div class="phase-items">
+                            <span class="phase-item">Open Torch LA (2nd location)</span>
+                            <span class="phase-item">License model to 1-2 partners</span>
+                            <span class="phase-item">Launch Torch Academy (education)</span>
+                            <span class="phase-item">Build artist development arm</span>
+                            <span class="phase-item">Create Torch Ventures fund</span>
+                            <span class="phase-item">Strategic label partnerships</span>
+                            <span class="phase-item">Torch gear/merch line</span>
+                            <span class="phase-item">Podcast studio offering</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phase 4 -->
+                <div class="growth-phase">
+                    <div class="phase-marker">4</div>
+                    <div class="phase-content">
+                        <div class="phase-header">
+                            <div>
+                                <div class="phase-title">Phase 4: Scale (2028+)</div>
+                                <div style="color: var(--text-dim); font-size: 14px;">National Network + Multiple Revenue Streams</div>
+                            </div>
+                            <div class="phase-revenue">$705,000+/mo</div>
+                        </div>
+                        <div class="phase-items">
+                            <span class="phase-item">4-5 owned locations</span>
+                            <span class="phase-item">10+ licensed locations</span>
+                            <span class="phase-item">Torch Publishing catalog</span>
+                            <span class="phase-item">Artist management roster</span>
+                            <span class="phase-item">Annual Torch Summit event</span>
+                            <span class="phase-item">Torch membership app</span>
+                            <span class="phase-item">B2B enterprise offering</span>
+                            <span class="phase-item">International expansion</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 40px;">
+                <h3>Revenue Diversification Strategy</h3>
+                <div class="grid-4" style="margin-top: 20px;">
+                    <div style="padding: 20px; background: var(--bg); border-radius: 12px; text-align: center;">
+                        <div style="font-size: 32px; margin-bottom: 12px;">🏠</div>
+                        <div style="font-weight: 600; margin-bottom: 4px;">Memberships</div>
+                        <div style="font-size: 13px; color: var(--text-dim);">Core recurring revenue</div>
+                        <div style="font-size: 18px; font-weight: 700; color: var(--gold); margin-top: 12px;">40%</div>
+                    </div>
+                    <div style="padding: 20px; background: var(--bg); border-radius: 12px; text-align: center;">
+                        <div style="font-size: 32px; margin-bottom: 12px;">🎵</div>
+                        <div style="font-weight: 600; margin-bottom: 4px;">Publishing</div>
+                        <div style="font-size: 13px; color: var(--text-dim);">Sync & royalties</div>
+                        <div style="font-size: 18px; font-weight: 700; color: var(--blue); margin-top: 12px;">25%</div>
+                    </div>
+                    <div style="padding: 20px; background: var(--bg); border-radius: 12px; text-align: center;">
+                        <div style="font-size: 32px; margin-bottom: 12px;">📜</div>
+                        <div style="font-weight: 600; margin-bottom: 4px;">Licensing</div>
+                        <div style="font-size: 13px; color: var(--text-dim);">Partner locations</div>
+                        <div style="font-size: 18px; font-weight: 700; color: var(--purple); margin-top: 12px;">20%</div>
+                    </div>
+                    <div style="padding: 20px; background: var(--bg); border-radius: 12px; text-align: center;">
+                        <div style="font-size: 32px; margin-bottom: 12px;">📦</div>
+                        <div style="font-weight: 600; margin-bottom: 4px;">Services</div>
+                        <div style="font-size: 13px; color: var(--text-dim);">Camps, events, gear</div>
+                        <div style="font-size: 18px; font-weight: 700; color: var(--success); margin-top: 12px;">15%</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- IDEAS BOARD SECTION -->
+        <section id="ideas" class="section">
+            <h1 class="section-title">Ideas Board</h1>
+            <p class="section-subtitle">Capture, organize, and prioritize growth ideas</p>
+
+            <div class="ideas-grid">
+                <!-- Quick Wins -->
+                <div class="idea-column">
+                    <div class="idea-column-header">
+                        <span class="dot" style="background: var(--success);"></span>
+                        <h4>Quick Wins (This Month)</h4>
+                    </div>
+                    <div class="idea-card">
+                        <h5>Ambassador Program Launch</h5>
+                        <p>Derrick Milano as first brand ambassador - leverage network for founding members</p>
+                        <div class="idea-tags">
+                            <span class="idea-tag revenue">Revenue</span>
+                            <span class="idea-tag brand">Brand</span>
+                        </div>
+                    </div>
+                    <div class="idea-card">
+                        <h5>Founding Member Push</h5>
+                        <p>Limited 15% discount locked forever - creates urgency and loyalty</p>
+                        <div class="idea-tags">
+                            <span class="idea-tag revenue">Revenue</span>
+                        </div>
+                    </div>
+                    <div class="idea-card">
+                        <h5>Instagram Content Strategy</h5>
+                        <p>Behind-the-scenes, facility tours, member spotlights</p>
+                        <div class="idea-tags">
+                            <span class="idea-tag brand">Brand</span>
+                        </div>
+                    </div>
+                    <div class="idea-card">
+                        <h5>Launch Party Event</h5>
+                        <p>Invite-only opening night - industry contacts, potential members</p>
+                        <div class="idea-tags">
+                            <span class="idea-tag brand">Brand</span>
+                            <span class="idea-tag revenue">Revenue</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Medium Term -->
+                <div class="idea-column">
+                    <div class="idea-column-header">
+                        <span class="dot" style="background: var(--warning);"></span>
+                        <h4>Medium Term (Q2-Q3)</h4>
+                    </div>
+                    <div class="idea-card">
+                        <h5>Torch Publishing Division</h5>
+                        <p>Sign songs created at facility, collect sync royalties, build catalog</p>
+                        <div class="idea-tags">
+                            <span class="idea-tag revenue">Revenue</span>
+                            <span class="idea-tag system">System</span>
+                        </div>
+                    </div>
+                    <div class="idea-card">
+                        <h5>Producer Collective</h5>
+                        <p>Curated network of member producers for label placements</p>
+                        <div class="idea-tags">
+                            <span class="idea-tag revenue">Revenue</span>
+                            <span class="idea-tag brand">Brand</span>
+                        </div>
+                    </div>
+                    <div class="idea-card">
+                        <h5>Quarterly Songwriter Camps</h5>
+                        <p>Multi-artist camp events with label sponsorship</p>
+                        <div class="idea-tags">
+                            <span class="idea-tag revenue">Revenue</span>
+                            <span class="idea-tag brand">Brand</span>
+                        </div>
+                    </div>
+                    <div class="idea-card">
+                        <h5>Torch Academy Online</h5>
+                        <p>Courses from member producers/writers - passive revenue</p>
+                        <div class="idea-tags">
+                            <span class="idea-tag revenue">Revenue</span>
+                            <span class="idea-tag system">System</span>
+                        </div>
+                    </div>
+                    <div class="idea-card">
+                        <h5>Equipment Rental Program</h5>
+                        <p>Premium gear available for member rental - additional revenue</p>
+                        <div class="idea-tags">
+                            <span class="idea-tag revenue">Revenue</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Long Term -->
+                <div class="idea-column">
+                    <div class="idea-column-header">
+                        <span class="dot" style="background: var(--purple);"></span>
+                        <h4>Long Term (2027+)</h4>
+                    </div>
+                    <div class="idea-card">
+                        <h5>Torch LA Location</h5>
+                        <p>Second owned location - replicate ATL model in Los Angeles market</p>
+                        <div class="idea-tags">
+                            <span class="idea-tag revenue">Revenue</span>
+                            <span class="idea-tag system">System</span>
+                        </div>
+                    </div>
+                    <div class="idea-card">
+                        <h5>Franchise/License Model</h5>
+                        <p>Package the Torch model for partners in other cities</p>
+                        <div class="idea-tags">
+                            <span class="idea-tag revenue">Revenue</span>
+                            <span class="idea-tag brand">Brand</span>
+                        </div>
+                    </div>
+                    <div class="idea-card">
+                        <h5>Torch Artist Development</h5>
+                        <p>In-house artist services - management, distribution, marketing</p>
+                        <div class="idea-tags">
+                            <span class="idea-tag revenue">Revenue</span>
+                            <span class="idea-tag system">System</span>
+                        </div>
+                    </div>
+                    <div class="idea-card">
+                        <h5>Annual Torch Summit</h5>
+                        <p>3-day conference for producers/songwriters - sponsorships + tickets</p>
+                        <div class="idea-tags">
+                            <span class="idea-tag revenue">Revenue</span>
+                            <span class="idea-tag brand">Brand</span>
+                        </div>
+                    </div>
+                    <div class="idea-card">
+                        <h5>Torch Ventures Fund</h5>
+                        <p>Invest in member projects, emerging artists, music tech</p>
+                        <div class="idea-tags">
+                            <span class="idea-tag revenue">Revenue</span>
+                        </div>
+                    </div>
+                    <div class="idea-card">
+                        <h5>Mobile Torch App</h5>
+                        <p>Member app for booking, communication, exclusive content</p>
+                        <div class="idea-tags">
+                            <span class="idea-tag system">System</span>
+                            <span class="idea-tag brand">Brand</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- INDUSTRY BENCHMARKS SECTION -->
+        <section id="benchmarks" class="section">
+            <h1 class="section-title">Industry Benchmarks</h1>
+            <p class="section-subtitle">Premium membership model comparisons and key metrics</p>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Soho House Model</h3>
+                        <span class="card-badge badge-gold">269,636 Members</span>
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <div class="revenue-tier">
+                            <div class="tier-color" style="background: var(--gold);"></div>
+                            <div class="tier-info">
+                                <div class="tier-name">Every House (27+)</div>
+                                <div class="tier-details">Access to 50+ Houses globally</div>
+                            </div>
+                            <div class="tier-revenue">
+                                <div class="current">$4,800</div>
+                                <div class="target">/year</div>
+                            </div>
+                        </div>
+                        <div class="revenue-tier">
+                            <div class="tier-color" style="background: var(--blue);"></div>
+                            <div class="tier-info">
+                                <div class="tier-name">Local House (27+)</div>
+                                <div class="tier-details">Single location access</div>
+                            </div>
+                            <div class="tier-revenue">
+                                <div class="current">$2,500</div>
+                                <div class="target">/year</div>
+                            </div>
+                        </div>
+                        <div class="revenue-tier">
+                            <div class="tier-color" style="background: var(--purple);"></div>
+                            <div class="tier-info">
+                                <div class="tier-name">Under 27</div>
+                                <div class="tier-details">50% discount on all tiers</div>
+                            </div>
+                            <div class="tier-revenue">
+                                <div class="current">50%</div>
+                                <div class="target">off</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="padding: 16px; background: var(--bg); border-radius: 8px;">
+                        <p style="font-size: 13px; color: var(--text-dim);"><strong>Key Insight:</strong> Soho House waitlist has 112,000+ applicants. Scarcity drives demand.</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Churn Rate Benchmarks</h3>
+                        <span class="card-badge badge-success">Target: &lt;10%</span>
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <div class="revenue-tier">
+                            <div class="tier-color" style="background: var(--success);"></div>
+                            <div class="tier-info">
+                                <div class="tier-name">The Battery SF</div>
+                                <div class="tier-details">91% renewal rate</div>
+                            </div>
+                            <div class="tier-revenue">
+                                <div class="current">9%</div>
+                                <div class="target">churn</div>
+                            </div>
+                        </div>
+                        <div class="revenue-tier">
+                            <div class="tier-color" style="background: var(--success);"></div>
+                            <div class="tier-info">
+                                <div class="tier-name">Costco</div>
+                                <div class="tier-details">92.6% renewal rate</div>
+                            </div>
+                            <div class="tier-revenue">
+                                <div class="current">7.4%</div>
+                                <div class="target">churn</div>
+                            </div>
+                        </div>
+                        <div class="revenue-tier">
+                            <div class="tier-color" style="background: var(--warning);"></div>
+                            <div class="tier-info">
+                                <div class="tier-name">Warning Zone</div>
+                                <div class="tier-details">Serious value/fit issues</div>
+                            </div>
+                            <div class="tier-revenue">
+                                <div class="current">&gt;15%</div>
+                                <div class="target">churn</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="padding: 16px; background: var(--bg); border-radius: 8px;">
+                        <p style="font-size: 13px; color: var(--text-dim);"><strong>Key Insight:</strong> Acquiring a new member costs 5-10x more than retaining an existing one.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 24px;">
+                <h3>LTV:CAC Ratio</h3>
+                <p style="color: var(--text-dim); margin-bottom: 20px;">Lifetime Value to Customer Acquisition Cost</p>
+                <div class="grid-4">
+                    <div style="padding: 20px; background: var(--bg); border-radius: 12px; text-align: center; border-left: 4px solid var(--danger);">
+                        <div style="font-size: 24px; font-weight: 700;">Below 1:1</div>
+                        <div style="font-size: 13px; color: var(--text-dim); margin-top: 8px;">Unsustainable</div>
+                    </div>
+                    <div style="padding: 20px; background: var(--bg); border-radius: 12px; text-align: center; border-left: 4px solid var(--warning);">
+                        <div style="font-size: 24px; font-weight: 700;">2:1 - 4:1</div>
+                        <div style="font-size: 13px; color: var(--text-dim); margin-top: 8px;">Healthy Range</div>
+                    </div>
+                    <div style="padding: 20px; background: var(--bg); border-radius: 12px; text-align: center; border-left: 4px solid var(--gold);">
+                        <div style="font-size: 24px; font-weight: 700; color: var(--gold);">3:1</div>
+                        <div style="font-size: 13px; color: var(--text-dim); margin-top: 8px;">Industry Standard</div>
+                    </div>
+                    <div style="padding: 20px; background: var(--bg); border-radius: 12px; text-align: center; border-left: 4px solid var(--success);">
+                        <div style="font-size: 24px; font-weight: 700;">5:1+</div>
+                        <div style="font-size: 13px; color: var(--text-dim); margin-top: 8px;">Excellent</div>
+                    </div>
+                </div>
+                <div style="margin-top: 20px; padding: 16px; background: var(--gold-dim); border-radius: 8px;">
+                    <p style="font-size: 14px;"><strong>Torch ATL LTV Example:</strong> $5,000/mo × 24 months avg = <span style="color: var(--gold); font-weight: 700;">$120,000 LTV</span> per Residency member</p>
+                </div>
+            </div>
+
+            <div class="grid-3" style="margin-top: 24px;">
+                <div class="card">
+                    <h3>Comparable Pricing</h3>
+                    <div style="margin-top: 16px;">
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between;">
+                            <span>Spring Place NYC</span>
+                            <span style="color: var(--gold);">$900/mo</span>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between;">
+                            <span>Remedy Place</span>
+                            <span style="color: var(--gold);">$600-2,750/mo</span>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between;">
+                            <span>The Battery SF</span>
+                            <span style="color: var(--gold);">$200/mo</span>
+                        </div>
+                        <div style="padding: 12px; background: var(--gold-dim); border-radius: 8px; display: flex; justify-content: space-between;">
+                            <strong>Torch ATL</strong>
+                            <span style="color: var(--gold); font-weight: 700;">$2,200-5,000/mo</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Soho House Revenue Mix</h3>
+                    <div style="margin-top: 16px;">
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span>Membership Fees</span>
+                                <span style="color: var(--gold);">34%</span>
+                            </div>
+                            <div style="height: 8px; background: var(--border); border-radius: 4px;">
+                                <div style="width: 34%; height: 100%; background: var(--gold); border-radius: 4px;"></div>
+                            </div>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span>In-House (F&B, rooms)</span>
+                                <span style="color: var(--blue);">42%</span>
+                            </div>
+                            <div style="height: 8px; background: var(--border); border-radius: 4px;">
+                                <div style="width: 42%; height: 100%; background: var(--blue); border-radius: 4px;"></div>
+                            </div>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span>Other Revenue</span>
+                                <span style="color: var(--purple);">24%</span>
+                            </div>
+                            <div style="height: 8px; background: var(--border); border-radius: 4px;">
+                                <div style="width: 24%; height: 100%; background: var(--purple); border-radius: 4px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Key Success Factors</h3>
+                    <div style="margin-top: 16px;">
+                        <div style="padding: 12px 16px; background: var(--bg); border-radius: 8px; margin-bottom: 8px; border-left: 3px solid var(--gold);">
+                            <strong>Exclusivity</strong>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">Waitlist creates perceived value</p>
+                        </div>
+                        <div style="padding: 12px 16px; background: var(--bg); border-radius: 8px; margin-bottom: 8px; border-left: 3px solid var(--gold);">
+                            <strong>Community Curation</strong>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">Screen for cultural/professional fit</p>
+                        </div>
+                        <div style="padding: 12px 16px; background: var(--bg); border-radius: 8px; margin-bottom: 8px; border-left: 3px solid var(--gold);">
+                            <strong>Premium Experience</strong>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">High-touch service at every point</p>
+                        </div>
+                        <div style="padding: 12px 16px; background: var(--bg); border-radius: 8px; border-left: 3px solid var(--gold);">
+                            <strong>Owned Expansion</strong>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">Control brand, don't franchise</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- REVENUE DIVERSIFICATION SECTION -->
+        <section id="diversify" class="section">
+            <h1 class="section-title">Revenue Diversification</h1>
+            <p class="section-subtitle">Additional income streams beyond core memberships</p>
+
+            <div class="kpi-grid" style="margin-bottom: 40px;">
+                <div class="kpi-card">
+                    <div class="kpi-value">$70.5K</div>
+                    <div class="kpi-label">Core MRR</div>
+                    <div class="kpi-change">Memberships only</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value">+$55K</div>
+                    <div class="kpi-label">Writing Camps</div>
+                    <div class="kpi-change up">$175K/year potential</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value">+$45K</div>
+                    <div class="kpi-label">Production</div>
+                    <div class="kpi-change up">$150K/year potential</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value">+$30K</div>
+                    <div class="kpi-label">Publishing</div>
+                    <div class="kpi-change up">$80K/year potential</div>
+                </div>
+                <div class="kpi-card" style="background: var(--gold-dim);">
+                    <div class="kpi-value">$1.5M+</div>
+                    <div class="kpi-label">Total ARR</div>
+                    <div class="kpi-change up">Diversified</div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Music Publishing / Sync</h3>
+                        <span class="card-badge badge-gold">$18K-80K/yr</span>
+                    </div>
+                    <p style="color: var(--text-dim); margin-bottom: 16px;">The sync licensing market is $650M+ globally, growing 7.4% YoY.</p>
+                    <div style="margin-bottom: 16px;">
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px;">
+                            <strong>Build Studio Catalog</strong>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">Produce original music for sync during downtime. 50-100 tracks = $5K-25K/year</p>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px;">
+                            <strong>Co-Publishing Deals</strong>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">Reduced rates for publishing % on tracks created. 10 artists = $10K-40K/year</p>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px;">
+                            <strong>Sync Commissions</strong>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">Place member music in TV/Film/Ads. 10-15% commission on placements.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Writing Camps</h3>
+                        <span class="card-badge badge-success">$55K-175K/yr</span>
+                    </div>
+                    <p style="color: var(--text-dim); margin-bottom: 16px;">Labels pay premium for exclusive creative environments.</p>
+                    <div style="margin-bottom: 16px;">
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Label-Sponsored Camps</span>
+                                <span style="color: var(--gold);">$2K-5K/day</span>
+                            </div>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">Host 10 days/year = $20K-50K</p>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Independent Camps</span>
+                                <span style="color: var(--gold);">$500-2,500/person</span>
+                            </div>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">4 camps × 15 participants = $30K-100K</p>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Publishing Backend</span>
+                                <span style="color: var(--gold);">10-25%</span>
+                            </div>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">Take publishing % on songs created at facility</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Production Services</h3>
+                        <span class="card-badge badge-blue">$45K-150K/yr</span>
+                    </div>
+                    <p style="color: var(--text-dim); margin-bottom: 16px;">Successful studios generate 30-50% revenue from ancillary services.</p>
+                    <div style="margin-bottom: 16px;">
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Mixing/Mastering</span>
+                                <span style="color: var(--gold);">$150-800/song</span>
+                            </div>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">100 songs/year = $30K-80K</p>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>In-House Production</span>
+                                <span style="color: var(--gold);">$1.5K-5K/track</span>
+                            </div>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">20 tracks/year = $30K-100K</p>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Post-Production</span>
+                                <span style="color: var(--gold);">$50-150/hr</span>
+                            </div>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">Podcast, audiobook, video audio</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Education / Academy</h3>
+                        <span class="card-badge badge-purple">$100K-116K/yr</span>
+                    </div>
+                    <p style="color: var(--text-dim); margin-bottom: 16px;">Music education has 25-30% EBITDA margins for top performers.</p>
+                    <div style="margin-bottom: 16px;">
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Private Lessons</span>
+                                <span style="color: var(--gold);">$120-200/mo</span>
+                            </div>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">30 students × $150 avg = $54K/year</p>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Group Classes</span>
+                                <span style="color: var(--gold);">$60-120/mo</span>
+                            </div>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">40 students × $80 avg = $38K/year</p>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg); border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Summer Intensives</span>
+                                <span style="color: var(--gold);">$300-800/week</span>
+                            </div>
+                            <p style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">3 weeks × 20 students = $12K-24K</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 24px;">
+                <h3>Diversified Revenue Projection (Years 3-5)</h3>
+                <div class="grid-4" style="margin-top: 20px;">
+                    <div style="padding: 20px; background: var(--bg); border-radius: 12px;">
+                        <div style="font-size: 14px; color: var(--text-dim); margin-bottom: 8px;">Core Memberships</div>
+                        <div style="font-size: 24px; font-weight: 700; color: var(--gold);">$846K</div>
+                        <div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">57% of revenue</div>
+                    </div>
+                    <div style="padding: 20px; background: var(--bg); border-radius: 12px;">
+                        <div style="font-size: 14px; color: var(--text-dim); margin-bottom: 8px;">Camps + Events</div>
+                        <div style="font-size: 24px; font-weight: 700; color: var(--success);">$250K</div>
+                        <div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">17% of revenue</div>
+                    </div>
+                    <div style="padding: 20px; background: var(--bg); border-radius: 12px;">
+                        <div style="font-size: 14px; color: var(--text-dim); margin-bottom: 8px;">Production + Education</div>
+                        <div style="font-size: 24px; font-weight: 700; color: var(--blue);">$266K</div>
+                        <div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">18% of revenue</div>
+                    </div>
+                    <div style="padding: 20px; background: var(--gold-dim); border-radius: 12px;">
+                        <div style="font-size: 14px; color: var(--gold); margin-bottom: 8px;">Publishing + Sync</div>
+                        <div style="font-size: 24px; font-weight: 700; color: var(--gold);">$120K</div>
+                        <div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">8% of revenue</div>
+                    </div>
+                </div>
+                <div style="margin-top: 24px; padding: 20px; background: linear-gradient(135deg, var(--gold-dim) 0%, rgba(212, 175, 55, 0.05) 100%); border-radius: 12px; text-align: center;">
+                    <div style="font-size: 14px; color: var(--text-dim); margin-bottom: 8px;">Total Diversified Annual Revenue</div>
+                    <div style="font-size: 48px; font-weight: 800; color: var(--gold);">$1,482,000</div>
+                    <div style="font-size: 14px; color: var(--text-dim); margin-top: 8px;">2.1X base membership revenue</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Navigation
+        function showSection(sectionId) {
+            // Hide all sections
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            // Show target section
+            document.getElementById(sectionId).classList.add('active');
+            // Update nav tabs
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        // Make flow nodes interactive
+        document.querySelectorAll('.flow-node').forEach(node => {
+            node.addEventListener('click', function() {
+                this.classList.toggle('highlight');
+            });
+        });
+
+        // Initialize
+        console.log('TORCH ATL Business Map loaded');
+    </script>
+</body>
+</html>
