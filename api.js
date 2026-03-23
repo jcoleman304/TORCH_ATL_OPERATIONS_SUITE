@@ -25,18 +25,209 @@ const TorchAPI = {
         timeFormat: (time) => /^\d{2}:\d{2}$/.test(time)
     },
 
+    // Backend connectivity flag
+    backendAvailable: false,
+
     // Initialize API layer
     init() {
         console.log('[TorchAPI] Initializing API layer...');
         this.initializeIdCounters();
+        this.checkBackend();
         console.log('[TorchAPI] API layer initialized');
         return this;
     },
 
+    // Check if backend is reachable
+    async checkBackend() {
+        if (typeof TorchBackend === 'undefined') {
+            this.backendAvailable = false;
+            return;
+        }
+        try {
+            await TorchBackend.health();
+            this.backendAvailable = true;
+            console.log('[TorchAPI] Backend connected');
+        } catch (e) {
+            this.backendAvailable = false;
+            console.warn('[TorchAPI] Backend unavailable, using local data');
+        }
+    },
+
+    // Refresh ALL data from backend into local arrays
+    async refreshFromBackend() {
+        if (!this.backendAvailable || typeof TorchBackend === 'undefined') return false;
+        try {
+            await Promise.all([
+                this.refreshMembers(),
+                this.refreshBookings(),
+                this.refreshEngineers(),
+                this.refreshActivityFeed(),
+                this.refreshSessionReports()
+            ]);
+            console.log('[TorchAPI] All data refreshed from backend');
+            if (typeof TorchStorage !== 'undefined') TorchStorage.saveAll();
+            return true;
+        } catch (e) {
+            console.warn('[TorchAPI] Backend refresh failed:', e.message);
+            return false;
+        }
+    },
+
+    // Refresh members from backend
+    async refreshMembers() {
+        if (typeof TorchBackend === 'undefined') return;
+        try {
+            const data = await TorchBackend.admin.listMembers();
+            if (Array.isArray(data) && data.length > 0) {
+                members.length = 0;
+                data.forEach(m => {
+                    members.push({
+                        id: m.id,
+                        name: m.name,
+                        email: m.email,
+                        phone: m.phone || '',
+                        tier: m.tier,
+                        status: m.status === 'active' ? 'Active' : m.status === 'pending' ? 'Pending' : m.status === 'suspended' ? 'Suspended' : 'Inactive',
+                        hoursUsed: parseFloat(m.hours_used) || 0,
+                        hoursTotal: parseFloat(m.hours_allocated) || TIERS[m.tier]?.hours || 0,
+                        monthlyRate: parseFloat(m.monthly_rate) || (m.founding ? TIERS[m.tier]?.foundingPrice : TIERS[m.tier]?.price) || 0,
+                        startDate: m.join_date?.split('T')[0] || m.created_at?.split('T')[0] || '',
+                        company: m.company || '',
+                        founding: !!m.founding,
+                        accessCode: '',
+                        notes: m.notes || '',
+                        _backendId: m.id
+                    });
+                });
+                this.initializeIdCounters();
+                console.log(`[TorchAPI] Loaded ${members.length} members from backend`);
+            }
+        } catch (e) {
+            console.warn('[TorchAPI] Member refresh failed:', e.message);
+        }
+    },
+
+    // Refresh bookings from backend
+    async refreshBookings() {
+        if (typeof TorchBackend === 'undefined') return;
+        try {
+            const data = await TorchBackend.bookings.list();
+            if (Array.isArray(data)) {
+                bookings.length = 0;
+                data.forEach(b => {
+                    bookings.push({
+                        id: b.id,
+                        memberId: b.member_id,
+                        memberName: b.member_name || '',
+                        date: (b.date || '').split('T')[0],
+                        startTime: (b.start_time || '').slice(0, 5),
+                        endTime: (b.end_time || '').slice(0, 5),
+                        hours: parseFloat(b.hours) || 0,
+                        guests: b.guest_count || 0,
+                        guestNames: [],
+                        type: (b.type || 'Recording').charAt(0).toUpperCase() + (b.type || 'recording').slice(1),
+                        status: b.status === 'confirmed' ? 'Confirmed' : b.status === 'completed' ? 'Completed' : b.status === 'cancelled' ? 'Cancelled' : b.status === 'pending' ? 'Pending' : b.status === 'declined' ? 'Declined' : b.status,
+                        engineerId: b.engineer_id || null,
+                        engineerName: b.engineer_name || '',
+                        engineerStatus: b.engineer_id ? 'assigned' : 'none',
+                        _backendId: b.id
+                    });
+                });
+                this.initializeIdCounters();
+                console.log(`[TorchAPI] Loaded ${bookings.length} bookings from backend`);
+            }
+        } catch (e) {
+            console.warn('[TorchAPI] Booking refresh failed:', e.message);
+        }
+    },
+
+    // Refresh engineers from backend (full CRM data)
+    async refreshEngineers() {
+        if (typeof TorchBackend === 'undefined') return;
+        try {
+            const data = await TorchBackend.admin.listEngineers();
+            if (Array.isArray(data) && data.length > 0) {
+                engineers.length = 0;
+                data.forEach(e => {
+                    engineers.push({
+                        id: e.id,
+                        name: e.name,
+                        email: e.email,
+                        phone: e.phone || '',
+                        accessCode: '',
+                        status: e.status || 'Active',
+                        role: e.role || 'Recording Engineer',
+                        specialties: e.specialties || ['Recording'],
+                        bio: e.bio || '',
+                        photoUrl: '',
+                        rate: e.rate || 60,
+                        availability: e.availability || {},
+                        stats: e.stats || { totalSessions: 0, totalHours: 0, totalEarnings: 0, averageRating: 0, acceptanceRate: 100, declinedSessions: 0 },
+                        monthlyStats: e.monthlyStats || {},
+                        notes: e.notes || [],
+                        createdAt: e.createdAt,
+                        updatedAt: e.updatedAt,
+                        _backendId: e.id
+                    });
+                });
+                this.initializeIdCounters();
+                console.log(`[TorchAPI] Loaded ${engineers.length} engineers from backend`);
+            }
+        } catch (e) {
+            console.warn('[TorchAPI] Engineer refresh failed:', e.message);
+        }
+    },
+
+    // Refresh activity feed from backend
+    async refreshActivityFeed() {
+        if (typeof TorchBackend === 'undefined') return;
+        try {
+            const data = await TorchBackend.admin.getActivity(50);
+            if (Array.isArray(data) && data.length > 0) {
+                activityFeed.length = 0;
+                data.forEach(a => {
+                    const age = Date.now() - new Date(a.created_at).getTime();
+                    const mins = Math.floor(age / 60000);
+                    let timeStr;
+                    if (mins < 1) timeStr = 'Just now';
+                    else if (mins < 60) timeStr = `${mins} min ago`;
+                    else if (mins < 1440) timeStr = `${Math.floor(mins / 60)} hours ago`;
+                    else timeStr = `${Math.floor(mins / 1440)} days ago`;
+
+                    activityFeed.push({
+                        text: `${a.action.replace(/_/g, ' ')}: ${a.entity_type} ${a.entity_id ? a.entity_id.slice(0, 8) : ''}`,
+                        time: timeStr,
+                        type: a.entity_type || 'general',
+                        timestamp: a.created_at
+                    });
+                });
+                console.log(`[TorchAPI] Loaded ${activityFeed.length} activity items from backend`);
+            }
+        } catch (e) {
+            console.warn('[TorchAPI] Activity refresh failed:', e.message);
+        }
+    },
+
+    // Refresh session reports from backend
+    async refreshSessionReports() {
+        if (typeof TorchBackend === 'undefined') return;
+        try {
+            const data = await TorchBackend.sessionReports.list();
+            if (Array.isArray(data)) {
+                sessionReports.length = 0;
+                data.forEach(r => sessionReports.push(r));
+                this.initializeIdCounters();
+                console.log(`[TorchAPI] Loaded ${sessionReports.length} session reports from backend`);
+            }
+        } catch (e) {
+            console.warn('[TorchAPI] Session reports refresh failed:', e.message);
+        }
+    },
+
     // Initialize ID counters based on existing data
     initializeIdCounters() {
-        this.nextMemberId = Math.max(...members.map(m => m.id), 0) + 1;
-        this.nextBookingId = Math.max(...bookings.map(b => b.id), 0) + 1;
+        this.nextMemberId = Math.max(...members.map(m => typeof m.id === 'number' ? m.id : 0), 0) + 1;
+        this.nextBookingId = Math.max(...bookings.map(b => typeof b.id === 'number' ? b.id : 0), 0) + 1;
         this.nextSmsId = Math.max(...smsHistory.map(s => s.id), 0) + 1;
         this.nextEmailId = Math.max(
             ...emailHistory.sent.map(e => e.id),
@@ -44,35 +235,55 @@ const TorchAPI = {
             ...emailHistory.drafts.map(e => e.id),
             0
         ) + 1;
-        this.nextEngineerId = Math.max(...engineers.map(e => e.id), 0) + 1;
+        this.nextEngineerId = Math.max(...engineers.map(e => typeof e.id === 'number' ? e.id : 0), 0) + 1;
         this.nextAdminUserId = Math.max(...adminUsers.map(a => a.id), 0) + 1;
-        this.nextSessionReportId = Math.max(...sessionReports.map(r => r.id), 0) + 1;
+        this.nextSessionReportId = Math.max(...sessionReports.map(r => typeof r.id === 'number' ? r.id : 0), 0) + 1;
     },
 
     // ==================== MEMBER OPERATIONS ====================
 
-    // Create a new member
-    createMember(memberData) {
+    // Create a new member — tries backend first
+    async createMember(memberData) {
         // Validate required fields
         const validation = this.validateMember(memberData);
         if (!validation.valid) {
             return { success: false, errors: validation.errors };
         }
 
-        // Check tier capacity
+        // Try backend first
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined') {
+            try {
+                const result = await TorchBackend.admin.createMember({
+                    name: memberData.name.trim(),
+                    email: memberData.email.toLowerCase().trim(),
+                    phone: memberData.phone || '',
+                    tier: memberData.tier,
+                    founding: memberData.founding === true,
+                    company: memberData.company || '',
+                    accessCode: memberData.accessCode || `TMP${Date.now().toString(36).toUpperCase()}`
+                });
+                // Refresh local data from backend
+                await this.refreshMembers();
+                this.logActivity(`New member added: ${memberData.name}`, 'member');
+                this.triggerWebhook('memberCreated', result);
+                return { success: true, member: result };
+            } catch (err) {
+                console.warn('[TorchAPI] Backend createMember failed:', err.message);
+                return { success: false, errors: [err.message] };
+            }
+        }
+
+        // Fallback: local
         const tierCount = members.filter(m => m.tier === memberData.tier && m.status === 'Active').length;
         if (tierCount >= TIERS[memberData.tier].cap) {
             return { success: false, errors: ['Tier capacity reached'] };
         }
-
-        // Check for duplicate email
         if (members.some(m => m.email.toLowerCase() === memberData.email.toLowerCase())) {
             return { success: false, errors: ['Email already exists'] };
         }
 
         const tierConfig = TIERS[memberData.tier];
         const isFoundng = memberData.founding === true;
-
         const newMember = {
             id: this.nextMemberId++,
             name: memberData.name.trim(),
@@ -91,86 +302,81 @@ const TorchAPI = {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
-
         members.push(newMember);
-
-        // Trigger storage save
-        if (typeof TorchStorage !== 'undefined') {
-            TorchStorage.saveMembers();
-        }
-
-        // Log activity
+        if (typeof TorchStorage !== 'undefined') TorchStorage.saveMembers();
         this.logActivity(`New member added: ${newMember.name}`, 'member');
-
-        // Trigger webhook
         this.triggerWebhook('memberCreated', newMember);
-
         return { success: true, member: newMember };
     },
 
-    // Update an existing member
-    updateMember(memberId, updates) {
+    // Update an existing member — tries backend first
+    async updateMember(memberId, updates) {
+        // Try backend first
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined') {
+            const backendId = members.find(m => m.id === memberId)?._backendId || memberId;
+            try {
+                const result = await TorchBackend.admin.updateMember(backendId, updates);
+                await this.refreshMembers();
+                this.logActivity(`Member updated: ${result.name || ''}`, 'member');
+                this.triggerWebhook('memberUpdated', result);
+                return { success: true, member: result };
+            } catch (err) {
+                console.warn('[TorchAPI] Backend updateMember failed:', err.message);
+                return { success: false, errors: [err.message] };
+            }
+        }
+
+        // Fallback: local
         const memberIndex = members.findIndex(m => m.id === memberId);
-        if (memberIndex === -1) {
-            return { success: false, errors: ['Member not found'] };
-        }
-
+        if (memberIndex === -1) return { success: false, errors: ['Member not found'] };
         const member = members[memberIndex];
-
-        // Validate updates
         if (updates.email && updates.email !== member.email) {
-            if (!this.validators.email(updates.email)) {
-                return { success: false, errors: ['Invalid email format'] };
-            }
-            if (members.some(m => m.id !== memberId && m.email.toLowerCase() === updates.email.toLowerCase())) {
-                return { success: false, errors: ['Email already exists'] };
-            }
+            if (!this.validators.email(updates.email)) return { success: false, errors: ['Invalid email format'] };
+            if (members.some(m => m.id !== memberId && m.email.toLowerCase() === updates.email.toLowerCase())) return { success: false, errors: ['Email already exists'] };
         }
-
         if (updates.tier && updates.tier !== member.tier) {
-            if (!this.validators.tier(updates.tier)) {
-                return { success: false, errors: ['Invalid tier'] };
-            }
-            // Update hours and rate based on new tier
+            if (!this.validators.tier(updates.tier)) return { success: false, errors: ['Invalid tier'] };
             const newTierConfig = TIERS[updates.tier];
             updates.hoursTotal = newTierConfig.hours;
             updates.monthlyRate = member.founding ? newTierConfig.foundingPrice : newTierConfig.price;
         }
-
-        // Apply updates
-        const updatedMember = {
-            ...member,
-            ...updates,
-            updatedAt: new Date().toISOString()
-        };
-
+        const updatedMember = { ...member, ...updates, updatedAt: new Date().toISOString() };
         members[memberIndex] = updatedMember;
-
-        // Trigger storage save
-        if (typeof TorchStorage !== 'undefined') {
-            TorchStorage.saveMembers();
-        }
-
-        // Log activity
+        if (typeof TorchStorage !== 'undefined') TorchStorage.saveMembers();
         this.logActivity(`Member updated: ${updatedMember.name}`, 'member');
-
-        // Trigger webhook
         this.triggerWebhook('memberUpdated', updatedMember);
-
         return { success: true, member: updatedMember };
     },
 
-    // Get member by ID
-    getMember(memberId) {
-        const member = members.find(m => m.id === memberId);
+    // Get member by ID — backend-first
+    async getMember(memberId) {
+        // Try to find from refreshed local cache first (already synced from backend)
+        const member = members.find(m => m.id === memberId || m._backendId === memberId);
         if (!member) {
             return { success: false, errors: ['Member not found'] };
         }
         return { success: true, member: member };
     },
 
-    // Get all members with optional filters
-    getMembers(filters = {}) {
+    // Get all members with optional filters — backend-first
+    async getMembers(filters = {}) {
+        // If backend is available and we have filters, refresh from backend with filters
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined' && Object.keys(filters).length > 0) {
+            try {
+                const params = {};
+                if (filters.tier) params.tier = filters.tier;
+                if (filters.status) params.status = filters.status === 'Active' ? 'active' : filters.status.toLowerCase();
+                if (filters.search) params.search = filters.search;
+                const data = await TorchBackend.admin.listMembers(params);
+                if (Array.isArray(data)) {
+                    return { success: true, members: data, count: data.length };
+                }
+            } catch (e) {
+                console.warn('[TorchAPI] Backend getMembers failed, using local:', e.message);
+            }
+        }
+
+        // Fallback: local filter
         let result = [...members];
 
         if (filters.tier) {
@@ -194,23 +400,24 @@ const TorchAPI = {
         return { success: true, members: result, count: result.length };
     },
 
-    // Delete (deactivate) member
-    deleteMember(memberId) {
-        const memberIndex = members.findIndex(m => m.id === memberId);
-        if (memberIndex === -1) {
-            return { success: false, errors: ['Member not found'] };
+    // Delete (deactivate) member — tries backend first
+    async deleteMember(memberId) {
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined') {
+            const backendId = members.find(m => m.id === memberId)?._backendId || memberId;
+            try {
+                await TorchBackend.admin.suspendMember(backendId);
+                await this.refreshMembers();
+                return { success: true };
+            } catch (err) {
+                console.warn('[TorchAPI] Backend deleteMember failed:', err.message);
+            }
         }
-
-        // Soft delete - set status to Inactive
+        const memberIndex = members.findIndex(m => m.id === memberId);
+        if (memberIndex === -1) return { success: false, errors: ['Member not found'] };
         members[memberIndex].status = 'Inactive';
         members[memberIndex].updatedAt = new Date().toISOString();
-
-        if (typeof TorchStorage !== 'undefined') {
-            TorchStorage.saveMembers();
-        }
-
+        if (typeof TorchStorage !== 'undefined') TorchStorage.saveMembers();
         this.logActivity(`Member deactivated: ${members[memberIndex].name}`, 'member');
-
         return { success: true };
     },
 
@@ -238,85 +445,79 @@ const TorchAPI = {
 
     // ==================== BOOKING OPERATIONS ====================
 
-    // Create a new booking
-    createBooking(bookingData) {
-        // Validate required fields
+    // Create a new booking — tries backend first
+    async createBooking(bookingData) {
         const validation = this.validateBooking(bookingData);
-        if (!validation.valid) {
-            return { success: false, errors: validation.errors };
+        if (!validation.valid) return { success: false, errors: validation.errors };
+
+        // Try backend first
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined') {
+            const member = members.find(m => m.id === bookingData.memberId);
+            const memberId = member?._backendId || bookingData.memberId;
+            try {
+                const result = await TorchBackend.bookings.create({
+                    memberId: memberId,
+                    date: bookingData.date,
+                    startTime: bookingData.startTime,
+                    endTime: bookingData.endTime,
+                    type: (bookingData.type || 'Recording').toLowerCase(),
+                    room: bookingData.room || undefined,
+                    guestCount: bookingData.guests || 0,
+                    engineerId: bookingData.engineerId || undefined,
+                    notes: bookingData.notes || ''
+                });
+                await this.refreshBookings();
+                await this.refreshMembers();
+                this.logActivity(`New booking: ${member?.name || ''} (${bookingData.date})`, 'booking');
+                this.triggerWebhook('bookingCreated', result);
+                return { success: true, booking: result };
+            } catch (err) {
+                console.warn('[TorchAPI] Backend createBooking failed:', err.message);
+                return { success: false, errors: [err.message] };
+            }
         }
 
-        // Get member
+        // Fallback: local
         const member = members.find(m => m.id === bookingData.memberId);
-        if (!member) {
-            return { success: false, errors: ['Member not found'] };
-        }
-
-        // Check member is active
-        if (member.status !== 'Active') {
-            return { success: false, errors: ['Member is not active'] };
-        }
-
-        // Calculate hours
+        if (!member) return { success: false, errors: ['Member not found'] };
+        if (member.status !== 'Active') return { success: false, errors: ['Member is not active'] };
         const hours = this.calculateBookingHours(bookingData.startTime, bookingData.endTime);
-
-        // Check available hours
-        if (member.hoursUsed + hours > member.hoursTotal) {
-            return { success: false, errors: [`Insufficient hours. Available: ${member.hoursTotal - member.hoursUsed}, Requested: ${hours}`] };
-        }
-
-        // Check for conflicting bookings
-        const conflictingBooking = bookings.find(b =>
-            b.date === bookingData.date &&
-            b.status === 'Confirmed' &&
-            this.timeOverlap(b.startTime, b.endTime, bookingData.startTime, bookingData.endTime)
-        );
-
-        if (conflictingBooking) {
-            return { success: false, errors: ['Time slot is already booked'] };
-        }
-
-        const newBooking = {
-            id: this.nextBookingId++,
-            memberId: member.id,
-            memberName: member.name,
-            date: bookingData.date,
-            startTime: bookingData.startTime,
-            endTime: bookingData.endTime,
-            hours: hours,
-            guests: bookingData.guests || 0,
-            guestNames: bookingData.guestNames || [],
-            type: bookingData.type || 'Recording',
-            status: 'Confirmed',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        };
-
+        if (member.hoursUsed + hours > member.hoursTotal) return { success: false, errors: [`Insufficient hours. Available: ${member.hoursTotal - member.hoursUsed}, Requested: ${hours}`] };
+        const conflictingBooking = bookings.find(b => b.date === bookingData.date && b.status === 'Confirmed' && this.timeOverlap(b.startTime, b.endTime, bookingData.startTime, bookingData.endTime));
+        if (conflictingBooking) return { success: false, errors: ['Time slot is already booked'] };
+        const newBooking = { id: this.nextBookingId++, memberId: member.id, memberName: member.name, date: bookingData.date, startTime: bookingData.startTime, endTime: bookingData.endTime, hours, guests: bookingData.guests || 0, guestNames: bookingData.guestNames || [], type: bookingData.type || 'Recording', status: 'Confirmed', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
         bookings.push(newBooking);
-
-        // Update member hours
         member.hoursUsed += hours;
-
-        // Trigger storage save
-        if (typeof TorchStorage !== 'undefined') {
-            TorchStorage.saveBookings();
-            TorchStorage.saveMembers();
-        }
-
-        // Log activity
+        if (typeof TorchStorage !== 'undefined') { TorchStorage.saveBookings(); TorchStorage.saveMembers(); }
         this.logActivity(`New booking: ${member.name} (${bookingData.date})`, 'booking');
-
-        // Trigger webhook
         this.triggerWebhook('bookingCreated', newBooking);
-
-        // Check if member is approaching hour limit
         this.checkHourWarning(member);
-
         return { success: true, booking: newBooking };
     },
 
-    // Update a booking
-    updateBooking(bookingId, updates) {
+    // Update a booking — tries backend first
+    async updateBooking(bookingId, updates) {
+        // Try backend first for status changes
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined') {
+            const backendId = bookings.find(b => b.id === bookingId)?._backendId || bookingId;
+            try {
+                if (updates.status) {
+                    await TorchBackend.bookings.updateStatus(backendId, updates.status.toLowerCase(), updates.reason);
+                } else {
+                    // General update — use PATCH if available, otherwise status endpoint
+                    await TorchBackend.bookings.updateStatus(backendId, updates.status || 'confirmed', updates.reason);
+                }
+                await this.refreshBookings();
+                await this.refreshMembers();
+                this.logActivity(`Booking updated: ${bookingId}`, 'booking');
+                return { success: true, booking: bookings.find(b => b.id === bookingId || b._backendId === backendId) };
+            } catch (err) {
+                console.warn('[TorchAPI] Backend updateBooking failed:', err.message);
+                // Fall through to local
+            }
+        }
+
+        // Fallback: local
         const bookingIndex = bookings.findIndex(b => b.id === bookingId);
         if (bookingIndex === -1) {
             return { success: false, errors: ['Booking not found'] };
@@ -332,20 +533,17 @@ const TorchAPI = {
             const newHours = this.calculateBookingHours(newStartTime, newEndTime);
             const hoursDiff = newHours - booking.hours;
 
-            // Check if member has enough hours
             if (member && member.hoursUsed + hoursDiff > member.hoursTotal) {
                 return { success: false, errors: ['Insufficient hours for time change'] };
             }
 
             updates.hours = newHours;
 
-            // Update member hours
             if (member) {
                 member.hoursUsed += hoursDiff;
             }
         }
 
-        // Apply updates
         const updatedBooking = {
             ...booking,
             ...updates,
@@ -364,32 +562,34 @@ const TorchAPI = {
         return { success: true, booking: updatedBooking };
     },
 
-    // Cancel a booking
-    cancelBooking(bookingId) {
+    // Cancel a booking — tries backend first
+    async cancelBooking(bookingId) {
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined') {
+            const backendId = bookings.find(b => b.id === bookingId)?._backendId || bookingId;
+            try {
+                await TorchBackend.bookings.cancel(backendId);
+                const booking = bookings.find(b => b.id === bookingId);
+                await this.refreshBookings();
+                await this.refreshMembers();
+                this.logActivity(`Booking cancelled: ${booking?.memberName || ''} (${booking?.date || ''})`, 'booking');
+                this.triggerWebhook('bookingCancelled', booking);
+                return { success: true };
+            } catch (err) {
+                console.warn('[TorchAPI] Backend cancelBooking failed:', err.message);
+                return { success: false, errors: [err.message] };
+            }
+        }
+
+        // Fallback: local
         const bookingIndex = bookings.findIndex(b => b.id === bookingId);
-        if (bookingIndex === -1) {
-            return { success: false, errors: ['Booking not found'] };
-        }
-
+        if (bookingIndex === -1) return { success: false, errors: ['Booking not found'] };
         const booking = bookings[bookingIndex];
-
-        // Return hours to member
         const member = members.find(m => m.id === booking.memberId);
-        if (member) {
-            member.hoursUsed = Math.max(0, member.hoursUsed - booking.hours);
-        }
-
-        // Remove booking
+        if (member) member.hoursUsed = Math.max(0, member.hoursUsed - booking.hours);
         bookings.splice(bookingIndex, 1);
-
-        if (typeof TorchStorage !== 'undefined') {
-            TorchStorage.saveBookings();
-            TorchStorage.saveMembers();
-        }
-
+        if (typeof TorchStorage !== 'undefined') { TorchStorage.saveBookings(); TorchStorage.saveMembers(); }
         this.logActivity(`Booking cancelled: ${booking.memberName} (${booking.date})`, 'booking');
         this.triggerWebhook('bookingCancelled', booking);
-
         return { success: true };
     },
 
@@ -652,8 +852,20 @@ const TorchAPI = {
         return { success: true, newHoursUsed: member.hoursUsed };
     },
 
-    // Reset monthly hours (typically called on 1st of month)
-    resetMonthlyHours() {
+    // Reset monthly hours — backend-first (triggers autonomous billing cycle)
+    async resetMonthlyHours() {
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined') {
+            try {
+                const result = await TorchBackend.admin.runMonthlyCycle();
+                await this.refreshMembers();
+                this.logActivity('Monthly billing cycle triggered via backend', 'system');
+                return { success: true, result };
+            } catch (err) {
+                console.warn('[TorchAPI] Backend resetMonthlyHours failed:', err.message);
+            }
+        }
+
+        // Fallback: local
         const resetMembers = [];
 
         members.forEach(member => {
@@ -828,8 +1040,40 @@ const TorchAPI = {
 
     // ==================== AUTHENTICATION ====================
 
-    // Login to Operations Suite
-    login(email, accessCode) {
+    // Login to Operations Suite — tries backend API first, falls back to local
+    async login(email, accessCode) {
+        // Try backend authentication first
+        if (typeof TorchBackend !== 'undefined') {
+            try {
+                // Try admin portal first (matches admin_users table)
+                let data;
+                try {
+                    data = await TorchBackend.auth.login(email, accessCode, 'admin');
+                } catch {
+                    // Not an admin — try regular login (matches engineers, then members)
+                    data = await TorchBackend.auth.login(email, accessCode);
+                }
+                // Backend login succeeded — map to local admin user shape
+                const backendUser = data.user;
+                currentAdminUser = {
+                    id: backendUser.id,
+                    name: backendUser.name,
+                    email: backendUser.email,
+                    role: backendUser.role,
+                    permissions: (backendUser.role === 'admin' || backendUser.role === 'manager') ? ['all'] : ['view_own_bookings', 'create_reports'],
+                    backendAuth: true
+                };
+                if (typeof TorchStorage !== 'undefined') {
+                    TorchStorage.saveCurrentAdmin();
+                }
+                this.logActivity(`${backendUser.name} logged in via backend (${backendUser.role})`, 'auth');
+                return { success: true, user: currentAdminUser };
+            } catch (backendErr) {
+                console.warn('[TorchAPI] Backend login failed, trying local:', backendErr.message);
+            }
+        }
+
+        // Fallback: local adminUsers check
         const user = adminUsers.find(u =>
             u.email.toLowerCase() === email.toLowerCase() &&
             u.accessCode === accessCode
@@ -858,6 +1102,11 @@ const TorchAPI = {
             TorchStorage.clearCurrentAdmin();
         }
 
+        // Also clear backend token
+        if (typeof TorchBackend !== 'undefined') {
+            TorchBackend.auth.logout();
+        }
+
         currentAdminUser = null;
         this.logActivity(`${userName} logged out`, 'auth');
 
@@ -878,112 +1127,76 @@ const TorchAPI = {
 
     // ==================== ENGINEER OPERATIONS ====================
 
-    // Create a new engineer
-    createEngineer(engineerData) {
+    // Create a new engineer — tries backend first
+    async createEngineer(engineerData) {
         const errors = [];
+        if (!this.validators.required(engineerData.name)) errors.push('Name is required');
+        if (!this.validators.required(engineerData.email)) errors.push('Email is required');
+        else if (!this.validators.email(engineerData.email)) errors.push('Invalid email format');
+        if (errors.length > 0) return { success: false, errors };
 
-        if (!this.validators.required(engineerData.name)) {
-            errors.push('Name is required');
+        // Try backend first
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined') {
+            try {
+                const result = await TorchBackend.admin.createEngineer({
+                    name: engineerData.name.trim(),
+                    email: engineerData.email.toLowerCase().trim(),
+                    phone: engineerData.phone || '',
+                    role: engineerData.role || 'Recording Engineer',
+                    specialties: engineerData.specialties || ['Recording'],
+                    bio: engineerData.bio || '',
+                    rate: engineerData.rate || 60,
+                    accessCode: engineerData.accessCode || null
+                });
+                await this.refreshEngineers();
+                this.logActivity(`New engineer added: ${result.name}`, 'engineer');
+                return { success: true, engineer: result };
+            } catch (err) {
+                console.warn('[TorchAPI] Backend createEngineer failed:', err.message);
+                return { success: false, errors: [err.message] };
+            }
         }
-        if (!this.validators.required(engineerData.email)) {
-            errors.push('Email is required');
-        } else if (!this.validators.email(engineerData.email)) {
-            errors.push('Invalid email format');
-        }
 
-        if (errors.length > 0) {
-            return { success: false, errors: errors };
-        }
-
-        // Check for duplicate email
-        if (engineers.some(e => e.email.toLowerCase() === engineerData.email.toLowerCase())) {
-            return { success: false, errors: ['Email already exists'] };
-        }
-
-        const newEngineer = {
-            id: this.nextEngineerId++,
-            name: engineerData.name.trim(),
-            email: engineerData.email.toLowerCase().trim(),
-            phone: engineerData.phone || '',
-            accessCode: engineerData.accessCode || this.generateAccessCode('ENG'),
-            status: engineerData.status || 'Active',
-            role: engineerData.role || 'Recording Engineer',
-            specialties: engineerData.specialties || ['Recording'],
-            bio: engineerData.bio || '',
-            photoUrl: engineerData.photoUrl || '',
-            rate: engineerData.rate || 60,
-            availability: engineerData.availability || {},
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        };
-
+        // Fallback: local
+        if (engineers.some(e => e.email.toLowerCase() === engineerData.email.toLowerCase())) return { success: false, errors: ['Email already exists'] };
+        const newEngineer = { id: this.nextEngineerId++, name: engineerData.name.trim(), email: engineerData.email.toLowerCase().trim(), phone: engineerData.phone || '', accessCode: engineerData.accessCode || this.generateAccessCode('ENG'), status: engineerData.status || 'Active', role: engineerData.role || 'Recording Engineer', specialties: engineerData.specialties || ['Recording'], bio: engineerData.bio || '', photoUrl: '', rate: engineerData.rate || 60, availability: engineerData.availability || {}, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
         engineers.push(newEngineer);
-
-        // Create admin user for engineer
-        const adminUser = {
-            id: this.nextAdminUserId++,
-            name: newEngineer.name,
-            email: newEngineer.email,
-            accessCode: newEngineer.accessCode,
-            role: 'engineer',
-            engineerId: newEngineer.id,
-            permissions: ['view_assigned_bookings', 'accept_bookings', 'submit_reports'],
-            createdAt: new Date().toISOString()
-        };
+        const adminUser = { id: this.nextAdminUserId++, name: newEngineer.name, email: newEngineer.email, accessCode: newEngineer.accessCode, role: 'engineer', engineerId: newEngineer.id, permissions: ['view_assigned_bookings', 'accept_bookings', 'submit_reports'], createdAt: new Date().toISOString() };
         adminUsers.push(adminUser);
-
-        if (typeof TorchStorage !== 'undefined') {
-            TorchStorage.saveEngineers();
-            TorchStorage.saveAdminUsers();
-        }
-
+        if (typeof TorchStorage !== 'undefined') { TorchStorage.saveEngineers(); TorchStorage.saveAdminUsers(); }
         this.logActivity(`New engineer added: ${newEngineer.name}`, 'engineer');
-
         return { success: true, engineer: newEngineer };
     },
 
-    // Update an engineer
-    updateEngineer(engineerId, updates) {
+    // Update an engineer — tries backend first
+    async updateEngineer(engineerId, updates) {
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined') {
+            const backendId = engineers.find(e => e.id === engineerId)?._backendId || engineerId;
+            try {
+                await TorchBackend.admin.updateEngineer(backendId, updates);
+                await this.refreshEngineers();
+                this.logActivity(`Engineer updated: ${updates.name || ''}`, 'engineer');
+                return { success: true, engineer: engineers.find(e => e.id === engineerId || e._backendId === backendId) };
+            } catch (err) {
+                console.warn('[TorchAPI] Backend updateEngineer failed:', err.message);
+                return { success: false, errors: [err.message] };
+            }
+        }
+
+        // Fallback: local
         const engineerIndex = engineers.findIndex(e => e.id === engineerId);
-        if (engineerIndex === -1) {
-            return { success: false, errors: ['Engineer not found'] };
-        }
-
+        if (engineerIndex === -1) return { success: false, errors: ['Engineer not found'] };
         const engineer = engineers[engineerIndex];
-
-        // Validate updates
         if (updates.email && updates.email !== engineer.email) {
-            if (!this.validators.email(updates.email)) {
-                return { success: false, errors: ['Invalid email format'] };
-            }
-            if (engineers.some(e => e.id !== engineerId && e.email.toLowerCase() === updates.email.toLowerCase())) {
-                return { success: false, errors: ['Email already exists'] };
-            }
+            if (!this.validators.email(updates.email)) return { success: false, errors: ['Invalid email format'] };
+            if (engineers.some(e => e.id !== engineerId && e.email.toLowerCase() === updates.email.toLowerCase())) return { success: false, errors: ['Email already exists'] };
         }
-
-        const updatedEngineer = {
-            ...engineer,
-            ...updates,
-            updatedAt: new Date().toISOString()
-        };
-
+        const updatedEngineer = { ...engineer, ...updates, updatedAt: new Date().toISOString() };
         engineers[engineerIndex] = updatedEngineer;
-
-        // Update corresponding admin user
         const adminUserIndex = adminUsers.findIndex(a => a.engineerId === engineerId);
-        if (adminUserIndex !== -1) {
-            if (updates.name) adminUsers[adminUserIndex].name = updates.name;
-            if (updates.email) adminUsers[adminUserIndex].email = updates.email;
-            if (updates.accessCode) adminUsers[adminUserIndex].accessCode = updates.accessCode;
-        }
-
-        if (typeof TorchStorage !== 'undefined') {
-            TorchStorage.saveEngineers();
-            TorchStorage.saveAdminUsers();
-        }
-
+        if (adminUserIndex !== -1) { if (updates.name) adminUsers[adminUserIndex].name = updates.name; if (updates.email) adminUsers[adminUserIndex].email = updates.email; }
+        if (typeof TorchStorage !== 'undefined') { TorchStorage.saveEngineers(); TorchStorage.saveAdminUsers(); }
         this.logActivity(`Engineer updated: ${updatedEngineer.name}`, 'engineer');
-
         return { success: true, engineer: updatedEngineer };
     },
 
@@ -1020,23 +1233,49 @@ const TorchAPI = {
         return { success: true, engineers: result, count: result.length };
     },
 
-    // Delete (deactivate) engineer
-    deleteEngineer(engineerId) {
-        const engineerIndex = engineers.findIndex(e => e.id === engineerId);
-        if (engineerIndex === -1) {
-            return { success: false, errors: ['Engineer not found'] };
+    // Delete (deactivate) engineer — tries backend first
+    async deleteEngineer(engineerId) {
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined') {
+            const backendId = engineers.find(e => e.id === engineerId)?._backendId || engineerId;
+            try {
+                await TorchBackend.admin.deleteEngineer(backendId);
+                await this.refreshEngineers();
+                return { success: true };
+            } catch (err) {
+                console.warn('[TorchAPI] Backend deleteEngineer failed:', err.message);
+            }
         }
-
+        const engineerIndex = engineers.findIndex(e => e.id === engineerId);
+        if (engineerIndex === -1) return { success: false, errors: ['Engineer not found'] };
         engineers[engineerIndex].status = 'Inactive';
         engineers[engineerIndex].updatedAt = new Date().toISOString();
+        if (typeof TorchStorage !== 'undefined') TorchStorage.saveEngineers();
+        this.logActivity(`Engineer deactivated: ${engineers[engineerIndex].name}`, 'engineer');
+        return { success: true };
+    },
 
-        if (typeof TorchStorage !== 'undefined') {
-            TorchStorage.saveEngineers();
+    // Add engineer note — tries backend first
+    async addEngineerNote(engineerId, text) {
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined') {
+            const backendId = engineers.find(e => e.id === engineerId)?._backendId || engineerId;
+            try {
+                const result = await TorchBackend.admin.addEngineerNote(backendId, text);
+                await this.refreshEngineers();
+                return { success: true, note: result };
+            } catch (err) {
+                console.warn('[TorchAPI] Backend addEngineerNote failed:', err.message);
+                return { success: false, errors: [err.message] };
+            }
         }
 
-        this.logActivity(`Engineer deactivated: ${engineers[engineerIndex].name}`, 'engineer');
-
-        return { success: true };
+        // Fallback: local
+        const engineer = engineers.find(e => e.id === engineerId);
+        if (!engineer) return { success: false, errors: ['Engineer not found'] };
+        if (!engineer.notes) engineer.notes = [];
+        const newNote = { id: Date.now(), text: text.trim(), author: currentAdminUser?.name || 'Admin', createdAt: new Date().toISOString() };
+        engineer.notes.push(newNote);
+        if (typeof TorchStorage !== 'undefined') TorchStorage.saveEngineers();
+        return { success: true, note: newNote };
     },
 
     // Generate access code
@@ -1163,135 +1402,136 @@ const TorchAPI = {
 
     // ==================== SESSION REPORT OPERATIONS ====================
 
-    // Create a session report
-    createSessionReport(reportData) {
+    // Create a session report — tries backend first
+    async createSessionReport(reportData) {
         const errors = [];
+        if (!this.validators.required(reportData.bookingId)) errors.push('Booking ID is required');
+        if (!this.validators.required(reportData.engineerId)) errors.push('Engineer ID is required');
+        if (errors.length > 0) return { success: false, errors };
 
-        if (!this.validators.required(reportData.bookingId)) {
-            errors.push('Booking ID is required');
-        }
-        if (!this.validators.required(reportData.engineerId)) {
-            errors.push('Engineer ID is required');
+        // Try backend first
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined') {
+            const booking = bookings.find(b => b.id === reportData.bookingId);
+            const backendBookingId = booking?._backendId || reportData.bookingId;
+            const engineer = engineers.find(e => e.id === reportData.engineerId);
+            const backendEngineerId = engineer?._backendId || reportData.engineerId;
+            try {
+                const result = await TorchBackend.sessionReports.create({
+                    bookingId: backendBookingId,
+                    engineerId: backendEngineerId,
+                    actualStartTime: reportData.actualStartTime,
+                    actualEndTime: reportData.actualEndTime,
+                    actualHours: reportData.actualHours,
+                    workType: reportData.workType,
+                    projectName: reportData.projectName,
+                    tracksWorked: reportData.tracksWorked,
+                    equipmentUsed: reportData.equipmentUsed,
+                    sessionQuality: reportData.sessionQuality,
+                    notes: reportData.notes,
+                    issuesReported: reportData.issuesReported,
+                    followUpNeeded: reportData.followUpNeeded
+                });
+                await this.refreshSessionReports();
+                this.logActivity(`Session report created for ${booking?.memberName || ''}`, 'report');
+                return { success: true, report: result };
+            } catch (err) {
+                console.warn('[TorchAPI] Backend createSessionReport failed:', err.message);
+                return { success: false, errors: [err.message] };
+            }
         }
 
-        if (errors.length > 0) {
-            return { success: false, errors: errors };
-        }
-
+        // Fallback: local
         const booking = bookings.find(b => b.id === reportData.bookingId);
-        if (!booking) {
-            return { success: false, errors: ['Booking not found'] };
-        }
-
+        if (!booking) return { success: false, errors: ['Booking not found'] };
         const engineer = engineers.find(e => e.id === reportData.engineerId);
-        if (!engineer) {
-            return { success: false, errors: ['Engineer not found'] };
-        }
-
+        if (!engineer) return { success: false, errors: ['Engineer not found'] };
         const member = members.find(m => m.id === booking.memberId);
-
-        const newReport = {
-            id: this.nextSessionReportId++,
-            bookingId: reportData.bookingId,
-            engineerId: reportData.engineerId,
-            engineerName: engineer.name,
-            memberId: booking.memberId,
-            memberName: member?.name || booking.memberName,
-            sessionDate: booking.date,
-            actualStartTime: reportData.actualStartTime || booking.startTime,
-            actualEndTime: reportData.actualEndTime || booking.endTime,
-            actualHours: reportData.actualHours || booking.hours,
-            workType: reportData.workType || booking.type,
-            projectName: reportData.projectName || '',
-            tracksWorked: reportData.tracksWorked || [],
-            equipmentUsed: reportData.equipmentUsed || [],
-            sessionQuality: reportData.sessionQuality || 3,
-            notes: reportData.notes || '',
-            issuesReported: reportData.issuesReported || '',
-            followUpNeeded: reportData.followUpNeeded || false,
-            status: 'draft',
-            submittedAt: null,
-            reviewedBy: null,
-            reviewedAt: null,
-            createdAt: new Date().toISOString()
-        };
-
+        const newReport = { id: this.nextSessionReportId++, bookingId: reportData.bookingId, engineerId: reportData.engineerId, engineerName: engineer.name, memberId: booking.memberId, memberName: member?.name || booking.memberName, sessionDate: booking.date, actualStartTime: reportData.actualStartTime || booking.startTime, actualEndTime: reportData.actualEndTime || booking.endTime, actualHours: reportData.actualHours || booking.hours, workType: reportData.workType || booking.type, projectName: reportData.projectName || '', tracksWorked: reportData.tracksWorked || [], equipmentUsed: reportData.equipmentUsed || [], sessionQuality: reportData.sessionQuality || 3, notes: reportData.notes || '', issuesReported: reportData.issuesReported || '', followUpNeeded: reportData.followUpNeeded || false, status: 'draft', submittedAt: null, reviewedBy: null, reviewedAt: null, createdAt: new Date().toISOString() };
         sessionReports.push(newReport);
-
-        // Link report to booking
         const bookingIndex = bookings.findIndex(b => b.id === reportData.bookingId);
-        if (bookingIndex !== -1) {
-            bookings[bookingIndex].sessionReportId = newReport.id;
-        }
-
-        if (typeof TorchStorage !== 'undefined') {
-            TorchStorage.saveSessionReports();
-            TorchStorage.saveBookings();
-        }
-
+        if (bookingIndex !== -1) bookings[bookingIndex].sessionReportId = newReport.id;
+        if (typeof TorchStorage !== 'undefined') { TorchStorage.saveSessionReports(); TorchStorage.saveBookings(); }
         this.logActivity(`Session report created for ${booking.memberName}`, 'report');
-
         return { success: true, report: newReport };
     },
 
-    // Update session report
-    updateSessionReport(reportId, updates) {
+    // Update session report — tries backend first
+    async updateSessionReport(reportId, updates) {
+        // Try backend first
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined') {
+            try {
+                await TorchBackend.sessionReports.update(reportId, updates);
+                await this.refreshSessionReports();
+                return { success: true };
+            } catch (err) {
+                console.warn('[TorchAPI] Backend updateSessionReport failed:', err.message);
+                return { success: false, errors: [err.message] };
+            }
+        }
+
+        // Fallback: local
         const reportIndex = sessionReports.findIndex(r => r.id === reportId);
         if (reportIndex === -1) {
             return { success: false, errors: ['Report not found'] };
         }
-
-        const updatedReport = {
-            ...sessionReports[reportIndex],
-            ...updates,
-            updatedAt: new Date().toISOString()
-        };
-
+        const updatedReport = { ...sessionReports[reportIndex], ...updates, updatedAt: new Date().toISOString() };
         sessionReports[reportIndex] = updatedReport;
-
-        if (typeof TorchStorage !== 'undefined') {
-            TorchStorage.saveSessionReports();
-        }
-
+        if (typeof TorchStorage !== 'undefined') TorchStorage.saveSessionReports();
         return { success: true, report: updatedReport };
     },
 
-    // Submit session report
-    submitSessionReport(reportId) {
+    // Submit session report — tries backend first
+    async submitSessionReport(reportId) {
+        // Try backend first
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined') {
+            try {
+                await TorchBackend.sessionReports.submit(reportId);
+                await this.refreshSessionReports();
+                this.logActivity('Session report submitted', 'report');
+                return { success: true };
+            } catch (err) {
+                console.warn('[TorchAPI] Backend submitSessionReport failed:', err.message);
+                return { success: false, errors: [err.message] };
+            }
+        }
+
+        // Fallback: local
         const reportIndex = sessionReports.findIndex(r => r.id === reportId);
         if (reportIndex === -1) {
             return { success: false, errors: ['Report not found'] };
         }
-
         sessionReports[reportIndex].status = 'submitted';
         sessionReports[reportIndex].submittedAt = new Date().toISOString();
-
-        if (typeof TorchStorage !== 'undefined') {
-            TorchStorage.saveSessionReports();
-        }
-
+        if (typeof TorchStorage !== 'undefined') TorchStorage.saveSessionReports();
         this.logActivity(`Session report submitted by ${sessionReports[reportIndex].engineerName}`, 'report');
-
         return { success: true, report: sessionReports[reportIndex] };
     },
 
-    // Review session report (admin)
-    reviewSessionReport(reportId, reviewedBy) {
+    // Review session report (admin) — tries backend first
+    async reviewSessionReport(reportId, reviewedBy) {
+        // Try backend first
+        if (this.backendAvailable && typeof TorchBackend !== 'undefined') {
+            try {
+                await TorchBackend.sessionReports.review(reportId);
+                await this.refreshSessionReports();
+                this.logActivity('Session report reviewed', 'report');
+                return { success: true };
+            } catch (err) {
+                console.warn('[TorchAPI] Backend reviewSessionReport failed:', err.message);
+                return { success: false, errors: [err.message] };
+            }
+        }
+
+        // Fallback: local
         const reportIndex = sessionReports.findIndex(r => r.id === reportId);
         if (reportIndex === -1) {
             return { success: false, errors: ['Report not found'] };
         }
-
         sessionReports[reportIndex].status = 'reviewed';
         sessionReports[reportIndex].reviewedBy = reviewedBy;
         sessionReports[reportIndex].reviewedAt = new Date().toISOString();
-
-        if (typeof TorchStorage !== 'undefined') {
-            TorchStorage.saveSessionReports();
-        }
-
+        if (typeof TorchStorage !== 'undefined') TorchStorage.saveSessionReports();
         this.logActivity(`Session report reviewed for ${sessionReports[reportIndex].memberName}`, 'report');
-
         return { success: true, report: sessionReports[reportIndex] };
     },
 

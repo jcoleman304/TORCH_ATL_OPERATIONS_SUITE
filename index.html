@@ -29,7 +29,7 @@
                 <button type="submit" class="btn primary full">Sign In</button>
             </form>
 
-            <p class="login-note">Admin: joi@torchatl.com / ADMIN2026<br>Engineer: jrodriguez.audio@gmail.com / ENG001</p>
+            <p class="login-note">Use your Torch ATL credentials to sign in.</p>
         </div>
     </div>
 
@@ -71,6 +71,10 @@
                 <span class="icon">📋</span>
                 <span>Session Reports</span>
             </li>
+            <li class="admin-only" data-tab="operations">
+                <span class="icon">🔧</span>
+                <span>Operations</span>
+            </li>
             <li class="admin-only" data-tab="settings">
                 <span class="icon">⚙️</span>
                 <span>Settings</span>
@@ -94,6 +98,11 @@
             <div class="user-info">
                 <span id="current-user-name">User</span>
                 <span id="current-user-role" class="user-role">Role</span>
+            </div>
+            <div class="connection-status" id="connection-status">
+                <span class="status-dot" id="connection-dot"></span>
+                <span class="status-text" id="connection-text">Connecting...</span>
+                <span class="last-refreshed" id="last-refreshed"></span>
             </div>
             <button class="btn secondary small logout-btn" onclick="handleLogout()">Logout</button>
             <p class="countdown" id="countdown"></p>
@@ -643,6 +652,240 @@
             </div>
         </section>
 
+        <!-- Operations Tab (Admin/Manager) -->
+        <section id="operations" class="tab-content admin-only">
+            <header class="page-header">
+                <h2>Operations Hub</h2>
+                <p style="color: var(--text-secondary); font-size: 13px; margin-top: 4px;">Nate tasks, vendor directory, property maintenance</p>
+            </header>
+
+            <!-- Sub-tabs -->
+            <div class="operations-sub-tabs">
+                <button class="ops-sub-tab active" data-ops-tab="calendar" onclick="switchOpsTab('calendar')">Calendar</button>
+                <button class="ops-sub-tab" data-ops-tab="nate" onclick="switchOpsTab('nate')">Nate Task Board</button>
+                <button class="ops-sub-tab" data-ops-tab="vendors" onclick="switchOpsTab('vendors')">Vendor Directory</button>
+                <button class="ops-sub-tab" data-ops-tab="maintenance" onclick="switchOpsTab('maintenance')">Maintenance Log</button>
+                <button class="ops-sub-tab" data-ops-tab="linen" onclick="switchOpsTab('linen')">Linen &amp; Supply</button>
+                <button class="ops-sub-tab" data-ops-tab="pending" onclick="switchOpsTab('pending')">Pending Bookings</button>
+                <button class="ops-sub-tab" data-ops-tab="tasks" onclick="switchOpsTab('tasks')">Studio Tasks</button>
+                <button class="ops-sub-tab" data-ops-tab="estate" onclick="switchOpsTab('estate')">Estate Requests</button>
+            </div>
+
+            <!-- Operations Calendar View -->
+            <div id="ops-calendar-view" class="ops-view active">
+                <div class="ops-calendar-header">
+                    <button onclick="changeOpsMonth(-1)">&larr;</button>
+                    <h3 id="ops-calendar-month">February 2026</h3>
+                    <button onclick="changeOpsMonth(1)">&rarr;</button>
+                </div>
+                <div class="calendar-legend">
+                    <span class="legend-item"><span class="event-dot booking"></span> Booking</span>
+                    <span class="legend-item"><span class="event-dot cleaning"></span> Cleaning</span>
+                    <span class="legend-item"><span class="event-dot maintenance"></span> Maintenance</span>
+                    <span class="legend-item"><span class="event-dot repair"></span> Repair</span>
+                    <span class="legend-item"><span class="event-dot estate"></span> Estate</span>
+                </div>
+                <div class="ops-calendar-grid">
+                    <div class="calendar-day-header">Sun</div>
+                    <div class="calendar-day-header">Mon</div>
+                    <div class="calendar-day-header">Tue</div>
+                    <div class="calendar-day-header">Wed</div>
+                    <div class="calendar-day-header">Thu</div>
+                    <div class="calendar-day-header">Fri</div>
+                    <div class="calendar-day-header">Sat</div>
+                    <div id="ops-calendar-days"></div>
+                </div>
+                <!-- Day Detail Panel -->
+                <div id="ops-day-detail" class="day-detail-panel" style="display: none;">
+                    <h4 id="ops-day-detail-title">--</h4>
+                    <div id="ops-day-detail-content"></div>
+                </div>
+            </div>
+
+            <!-- Pending Bookings View -->
+            <div id="ops-pending-view" class="ops-view" style="display: none;">
+                <div class="ops-filter-bar">
+                    <select id="ops-booking-status-filter" onchange="loadPendingBookings()">
+                        <option value="all">All Statuses</option>
+                        <option value="pending" selected>Pending</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="declined">Declined</option>
+                    </select>
+                </div>
+                <div id="ops-pending-list" class="ops-cards-grid">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Studio Tasks View -->
+            <div id="ops-tasks-view" class="ops-view" style="display: none;">
+                <div class="ops-filter-bar">
+                    <button class="btn primary" onclick="openModal('add-task-modal')">+ Add Task</button>
+                    <select id="ops-task-room-filter" onchange="loadStudioTasks()">
+                        <option value="all">All Rooms</option>
+                        <option value="b-room">B Room</option>
+                        <option value="c-room">C Room</option>
+                        <option value="common">Common Area</option>
+                        <option value="estate">Estate</option>
+                    </select>
+                    <select id="ops-task-type-filter" onchange="loadStudioTasks()">
+                        <option value="all">All Types</option>
+                        <option value="cleaning">Cleaning</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="repair">Repair</option>
+                        <option value="inspection">Inspection</option>
+                    </select>
+                    <select id="ops-task-status-filter" onchange="loadStudioTasks()">
+                        <option value="all">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+                <div id="ops-tasks-list" class="ops-cards-grid">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Estate Requests View -->
+            <div id="ops-estate-view" class="ops-view" style="display: none;">
+                <div class="ops-filter-bar">
+                    <select id="ops-estate-status-filter" onchange="loadEstateRequests()">
+                        <option value="all">All Statuses</option>
+                        <option value="pending">Pending</option>
+                        <option value="reviewing">Under Review</option>
+                        <option value="approved">Approved</option>
+                        <option value="declined">Declined</option>
+                    </select>
+                </div>
+                <div id="ops-estate-list" class="ops-cards-grid">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- ============ NATE TASK BOARD ============ -->
+            <div id="ops-nate-view" class="ops-view" style="display: none;">
+                <div class="ops-filter-bar">
+                    <button class="btn primary" onclick="openModal('add-nate-task-modal')">+ Add Task</button>
+                    <select id="nate-task-category-filter" onchange="loadNateTasks()">
+                        <option value="all">All Categories</option>
+                        <option value="pre-arrival">Pre-Arrival</option>
+                        <option value="day-of">Day-Of</option>
+                        <option value="post-session">Post-Session</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="ad-hoc">Ad-Hoc</option>
+                    </select>
+                    <select id="nate-task-priority-filter" onchange="loadNateTasks()">
+                        <option value="all">All Priorities</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                    <select id="nate-task-status-filter" onchange="loadNateTasks()">
+                        <option value="all">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+                <div id="nate-tasks-list" class="ops-cards-grid">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- ============ VENDOR DIRECTORY ============ -->
+            <div id="ops-vendors-view" class="ops-view" style="display: none;">
+                <div class="ops-filter-bar">
+                    <button class="btn primary" onclick="openModal('add-vendor-modal')">+ Add Vendor</button>
+                    <select id="vendor-category-filter" onchange="loadVendors()">
+                        <option value="all">All Categories</option>
+                        <option value="cleaning">Cleaning</option>
+                        <option value="catering">Catering</option>
+                        <option value="hvac">HVAC</option>
+                        <option value="plumbing">Plumbing</option>
+                        <option value="electrical">Electrical</option>
+                        <option value="landscaping">Landscaping</option>
+                        <option value="equipment">Equipment</option>
+                        <option value="security">Security</option>
+                        <option value="pest-control">Pest Control</option>
+                        <option value="other">Other</option>
+                    </select>
+                    <select id="vendor-rating-filter" onchange="loadVendors()">
+                        <option value="all">All Ratings</option>
+                        <option value="5">5 Stars</option>
+                        <option value="4">4+ Stars</option>
+                        <option value="3">3+ Stars</option>
+                    </select>
+                </div>
+                <div id="vendors-list" class="ops-cards-grid">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- ============ PROPERTY MAINTENANCE LOG ============ -->
+            <div id="ops-maintenance-view" class="ops-view" style="display: none;">
+                <div class="ops-filter-bar">
+                    <button class="btn primary" onclick="openModal('add-maintenance-modal')">+ Log Item</button>
+                    <select id="maint-priority-filter" onchange="loadMaintenanceLog()">
+                        <option value="all">All Priorities</option>
+                        <option value="urgent">Urgent</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                    <select id="maint-status-filter" onchange="loadMaintenanceLog()">
+                        <option value="all">All Status</option>
+                        <option value="open">Open</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="scheduled">Scheduled</option>
+                        <option value="resolved">Resolved</option>
+                    </select>
+                    <select id="maint-area-filter" onchange="loadMaintenanceLog()">
+                        <option value="all">All Areas</option>
+                        <option value="studio-a">Studio A</option>
+                        <option value="studio-b">Studio B</option>
+                        <option value="studio-c">Studio C</option>
+                        <option value="common">Common Area</option>
+                        <option value="kitchen">Kitchen</option>
+                        <option value="exterior">Exterior</option>
+                        <option value="hvac">HVAC</option>
+                        <option value="whole-property">Whole Property</option>
+                    </select>
+                </div>
+                <div id="maintenance-list" class="ops-cards-grid">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- ============ LINEN & SUPPLY STANDARDS ============ -->
+            <div id="ops-linen-view" class="ops-view" style="display: none;">
+                <div class="ops-filter-bar">
+                    <button class="btn primary" onclick="openModal('add-linen-modal')">+ Log Inspection</button>
+                    <select id="linen-category-filter" onchange="loadLinenStandards()">
+                        <option value="all">All Categories</option>
+                        <option value="towels">Towels</option>
+                        <option value="linens">Linens</option>
+                        <option value="cleaning-supplies">Cleaning Supplies</option>
+                        <option value="toiletries">Toiletries</option>
+                        <option value="kitchen-supplies">Kitchen Supplies</option>
+                        <option value="studio-supplies">Studio Supplies</option>
+                    </select>
+                    <select id="linen-status-filter" onchange="loadLinenStandards()">
+                        <option value="all">All Status</option>
+                        <option value="pass">Pass</option>
+                        <option value="fail">Fail</option>
+                        <option value="reorder">Reorder Needed</option>
+                    </select>
+                </div>
+                <div class="linen-summary-bar" id="linen-summary">
+                    <!-- Populated by JS -->
+                </div>
+                <div id="linen-list" class="ops-cards-grid">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </section>
+
         <!-- Settings Tab -->
         <section id="settings" class="tab-content admin-only">
             <header class="page-header">
@@ -879,6 +1122,7 @@
                 <button class="close-btn" onclick="closeModal('add-booking-modal')">&times;</button>
             </div>
             <form onsubmit="addBooking(event)">
+                <!-- Member + Session Type -->
                 <div class="form-row">
                     <div class="form-group">
                         <label>Member</label>
@@ -887,42 +1131,119 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Date</label>
-                        <input type="date" id="booking-date" required>
+                        <label>Session Type</label>
+                        <select id="booking-type">
+                            <option value="Recording">Recording</option>
+                            <option value="Mixing">Mixing</option>
+                            <option value="Mastering">Mastering</option>
+                            <option value="Production">Production</option>
+                            <option value="Writing">Writing</option>
+                            <option value="Rehearsal">Rehearsal</option>
+                            <option value="Podcast">Podcast</option>
+                            <option value="Meeting">Meeting</option>
+                            <option value="Camp">Camp</option>
+                        </select>
                     </div>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Start Time</label>
-                        <input type="time" id="booking-start" required>
-                    </div>
-                    <div class="form-group">
-                        <label>End Time</label>
-                        <input type="time" id="booking-end" required>
+
+                <!-- Room Selection -->
+                <div class="form-group">
+                    <label>Room</label>
+                    <input type="hidden" id="booking-room" value="">
+                    <div class="room-selection">
+                        <button type="button" class="room-option" onclick="selectRoom('b-room', this)">
+                            <span class="room-icon">B</span>
+                            <span>B Room</span>
+                        </button>
+                        <button type="button" class="room-option" onclick="selectRoom('c-room', this)">
+                            <span class="room-icon">C</span>
+                            <span>C Room</span>
+                        </button>
                     </div>
                 </div>
+
+                <!-- Session Dates -->
+                <div class="form-group">
+                    <label>Session Dates</label>
+                    <div id="session-dates-container">
+                        <div class="session-date-row" data-row="0">
+                            <input type="date" class="session-date-input" required>
+                            <div class="time-block-toggle">
+                                <button type="button" class="time-block active" data-block="day" onclick="selectTimeBlock(this)">
+                                    Day <small>12p&ndash;7p</small>
+                                </button>
+                                <button type="button" class="time-block" data-block="night" onclick="selectTimeBlock(this)">
+                                    Night <small>8p&ndash;3a</small>
+                                </button>
+                            </div>
+                            <!-- No remove button on first row -->
+                        </div>
+                    </div>
+                    <button type="button" class="btn-add-date" onclick="addSessionDate()">+ Add Another Date</button>
+                </div>
+
+                <!-- Guests -->
                 <div class="form-row">
                     <div class="form-group">
                         <label>Number of Guests</label>
                         <input type="number" id="booking-guests" min="0" max="8" value="0">
                     </div>
                     <div class="form-group">
-                        <label>Session Type</label>
-                        <select id="booking-type">
-                            <option value="Recording">Recording</option>
-                            <option value="Writing">Writing</option>
-                            <option value="Meeting">Meeting</option>
-                            <option value="Camp">Camp</option>
-                        </select>
+                        <label>Guest Names (if any)</label>
+                        <input type="text" id="booking-guest-names" placeholder="Comma-separated names">
                     </div>
                 </div>
-                <div class="form-group">
-                    <label>Guest Names (if any)</label>
-                    <textarea id="booking-guest-names" rows="2" placeholder="Enter guest names, one per line"></textarea>
+
+                <!-- Estate Access -->
+                <div class="estate-access-section">
+                    <div class="estate-access-info">
+                        <h4>Full Estate Access</h4>
+                        <p>Need the full property for a private event, video shoot, or retreat?</p>
+                    </div>
+                    <button type="button" class="btn secondary" onclick="openModal('estate-request-modal')">Request Here</button>
                 </div>
+
                 <div class="form-actions">
                     <button type="button" class="btn secondary" onclick="closeModal('add-booking-modal')">Cancel</button>
                     <button type="submit" class="btn primary">Create Booking</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Estate Request Modal (layered above booking modal) -->
+    <div id="estate-request-modal" class="modal" style="z-index: 1100;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Full Estate Access Request</h3>
+                <button class="close-btn" onclick="closeModal('estate-request-modal')">&times;</button>
+            </div>
+            <form onsubmit="submitEstateRequest(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="estate-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="estate-email" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="tel" id="estate-phone" placeholder="(555) 123-4567">
+                </div>
+                <div class="form-group">
+                    <label>Preferred Dates</label>
+                    <input type="text" id="estate-dates" placeholder="e.g. March 15-17, 2026">
+                </div>
+                <div class="form-group">
+                    <label>Event Details</label>
+                    <textarea id="estate-details" rows="4" placeholder="Describe your event, expected headcount, and any special requirements..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn secondary" onclick="closeModal('estate-request-modal')">Cancel</button>
+                    <button type="submit" class="btn primary">Submit Request</button>
                 </div>
             </form>
         </div>
@@ -1358,6 +1679,391 @@
         </div>
     </div>
 
+    <!-- Add Studio Task Modal -->
+    <div id="add-task-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Studio Task</h3>
+                <button class="close-btn" onclick="closeModal('add-task-modal')">&times;</button>
+            </div>
+            <form onsubmit="addStudioTask(event)">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="task-title" required placeholder="e.g. Deep clean B Room">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select id="task-type" required>
+                            <option value="cleaning">Cleaning</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="repair">Repair</option>
+                            <option value="inspection">Inspection</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Room</label>
+                        <select id="task-room" required>
+                            <option value="b-room">B Room</option>
+                            <option value="c-room">C Room</option>
+                            <option value="common">Common Area</option>
+                            <option value="estate">Estate</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Scheduled Date</label>
+                        <input type="date" id="task-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Scheduled Time</label>
+                        <input type="time" id="task-time" value="09:00">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Assigned To</label>
+                    <input type="text" id="task-assigned" placeholder="Staff name (optional)">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="task-description" rows="3" placeholder="Task details..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn secondary" onclick="closeModal('add-task-modal')">Cancel</button>
+                    <button type="submit" class="btn primary">Create Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Decline Booking Modal -->
+    <div id="decline-booking-modal" class="modal" style="z-index: 1100;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Decline Booking</h3>
+                <button class="close-btn" onclick="closeModal('decline-booking-modal')">&times;</button>
+            </div>
+            <form onsubmit="confirmDeclineBooking(event)">
+                <input type="hidden" id="decline-booking-id">
+                <div class="form-group">
+                    <label>Reason for declining</label>
+                    <textarea id="decline-reason" rows="3" placeholder="Explain why this booking is being declined..." required></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn secondary" onclick="closeModal('decline-booking-modal')">Cancel</button>
+                    <button type="submit" class="btn primary" style="background: #e74c3c;">Decline Booking</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Estate Detail Modal -->
+    <div id="estate-detail-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Estate Request Details</h3>
+                <button class="close-btn" onclick="closeModal('estate-detail-modal')">&times;</button>
+            </div>
+            <div class="estate-detail-content">
+                <div class="info-row">
+                    <span class="info-label">Name:</span>
+                    <span id="estate-detail-name">--</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Email:</span>
+                    <span id="estate-detail-email">--</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Phone:</span>
+                    <span id="estate-detail-phone">--</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Preferred Dates:</span>
+                    <span id="estate-detail-dates">--</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Event Details:</span>
+                    <p id="estate-detail-event">--</p>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Submitted:</span>
+                    <span id="estate-detail-submitted">--</span>
+                </div>
+            </div>
+            <div class="form-group" style="margin-top: 16px;">
+                <label>Status</label>
+                <select id="estate-detail-status">
+                    <option value="pending">Pending</option>
+                    <option value="reviewing">Under Review</option>
+                    <option value="approved">Approved</option>
+                    <option value="declined">Declined</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Admin Notes</label>
+                <textarea id="estate-detail-notes" rows="3" placeholder="Internal notes about this request..."></textarea>
+            </div>
+            <input type="hidden" id="estate-detail-id">
+            <div class="form-actions">
+                <button type="button" class="btn secondary" onclick="closeModal('estate-detail-modal')">Close</button>
+                <button type="button" class="btn primary" onclick="saveEstateUpdate()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ NATE TASK BOARD MODAL ============ -->
+    <div id="add-nate-task-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Nate Task</h3>
+                <button class="close-btn" onclick="closeModal('add-nate-task-modal')">&times;</button>
+            </div>
+            <form onsubmit="addNateTask(event)">
+                <div class="form-group">
+                    <label>Task Title</label>
+                    <input type="text" id="nate-task-title" required placeholder="e.g. Stock towels in Studio B">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select id="nate-task-category" required>
+                            <option value="pre-arrival">Pre-Arrival</option>
+                            <option value="day-of">Day-Of</option>
+                            <option value="post-session">Post-Session</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="ad-hoc">Ad-Hoc</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Priority</label>
+                        <select id="nate-task-priority" required>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Due Date</label>
+                        <input type="date" id="nate-task-due" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Linked Booking (optional)</label>
+                        <input type="text" id="nate-task-booking" placeholder="Booking reference">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="nate-task-notes" rows="3" placeholder="Task details..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn secondary" onclick="closeModal('add-nate-task-modal')">Cancel</button>
+                    <button type="submit" class="btn primary">Create Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============ VENDOR DIRECTORY MODAL ============ -->
+    <div id="add-vendor-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Vendor</h3>
+                <button class="close-btn" onclick="closeModal('add-vendor-modal')">&times;</button>
+            </div>
+            <form onsubmit="addVendor(event)">
+                <div class="form-group">
+                    <label>Company Name</label>
+                    <input type="text" id="vendor-name" required placeholder="e.g. ABC HVAC Services">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select id="vendor-category" required>
+                            <option value="cleaning">Cleaning</option>
+                            <option value="catering">Catering</option>
+                            <option value="hvac">HVAC</option>
+                            <option value="plumbing">Plumbing</option>
+                            <option value="electrical">Electrical</option>
+                            <option value="landscaping">Landscaping</option>
+                            <option value="equipment">Equipment</option>
+                            <option value="security">Security</option>
+                            <option value="pest-control">Pest Control</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Reliability Rating (1-5)</label>
+                        <select id="vendor-rating">
+                            <option value="5">5 - Excellent</option>
+                            <option value="4">4 - Good</option>
+                            <option value="3" selected>3 - Average</option>
+                            <option value="2">2 - Below Average</option>
+                            <option value="1">1 - Poor</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Contact Name</label>
+                        <input type="text" id="vendor-contact" placeholder="Primary contact name">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="tel" id="vendor-phone" placeholder="(555) 123-4567">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="vendor-email" placeholder="vendor@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Hourly/Service Rate</label>
+                        <input type="text" id="vendor-rate" placeholder="e.g. $125/hr or $250/visit">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="vendor-notes" rows="3" placeholder="Service details, contract info, etc."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn secondary" onclick="closeModal('add-vendor-modal')">Cancel</button>
+                    <button type="submit" class="btn primary">Add Vendor</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============ MAINTENANCE LOG MODAL ============ -->
+    <div id="add-maintenance-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Log Maintenance Item</h3>
+                <button class="close-btn" onclick="closeModal('add-maintenance-modal')">&times;</button>
+            </div>
+            <form onsubmit="addMaintenanceItem(event)">
+                <div class="form-group">
+                    <label>Issue Title</label>
+                    <input type="text" id="maint-title" required placeholder="e.g. Upstairs HVAC unit undersized">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Priority</label>
+                        <select id="maint-priority" required>
+                            <option value="medium">Medium</option>
+                            <option value="urgent">Urgent</option>
+                            <option value="high">High</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Area</label>
+                        <select id="maint-area" required>
+                            <option value="whole-property">Whole Property</option>
+                            <option value="studio-a">Studio A</option>
+                            <option value="studio-b">Studio B</option>
+                            <option value="studio-c">Studio C</option>
+                            <option value="common">Common Area</option>
+                            <option value="kitchen">Kitchen</option>
+                            <option value="exterior">Exterior</option>
+                            <option value="hvac">HVAC</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Assigned To</label>
+                        <input type="text" id="maint-assigned" placeholder="Vendor or staff name">
+                    </div>
+                    <div class="form-group">
+                        <label>Reported Date</label>
+                        <input type="date" id="maint-reported" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Next Service Date (optional)</label>
+                        <input type="date" id="maint-next-service">
+                    </div>
+                    <div class="form-group">
+                        <label>Estimated Cost</label>
+                        <input type="text" id="maint-cost" placeholder="$0.00">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="maint-description" rows="3" placeholder="Details about the issue, vendor findings, etc."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn secondary" onclick="closeModal('add-maintenance-modal')">Cancel</button>
+                    <button type="submit" class="btn primary">Log Item</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============ LINEN & SUPPLY MODAL ============ -->
+    <div id="add-linen-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Log Inspection</h3>
+                <button class="close-btn" onclick="closeModal('add-linen-modal')">&times;</button>
+            </div>
+            <form onsubmit="addLinenInspection(event)">
+                <div class="form-group">
+                    <label>Item</label>
+                    <input type="text" id="linen-item" required placeholder="e.g. Bath towels - Studio B">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select id="linen-category" required>
+                            <option value="towels">Towels</option>
+                            <option value="linens">Linens</option>
+                            <option value="cleaning-supplies">Cleaning Supplies</option>
+                            <option value="toiletries">Toiletries</option>
+                            <option value="kitchen-supplies">Kitchen Supplies</option>
+                            <option value="studio-supplies">Studio Supplies</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="linen-status" required>
+                            <option value="pass">Pass</option>
+                            <option value="fail">Fail</option>
+                            <option value="reorder">Reorder Needed</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Quantity on Hand</label>
+                        <input type="number" id="linen-quantity" placeholder="0" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Minimum Required</label>
+                        <input type="number" id="linen-minimum" placeholder="0" min="0">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Inspected By</label>
+                    <input type="text" id="linen-inspector" value="Nate" placeholder="Inspector name">
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="linen-notes" rows="3" placeholder="Condition details, issues found, reorder specifics..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn secondary" onclick="closeModal('add-linen-modal')">Cancel</button>
+                    <button type="submit" class="btn primary">Log Inspection</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     </div><!-- End app-container -->
 
     <!-- Toast Notifications -->
@@ -1376,6 +2082,13 @@
         </div>
     </div>
 
+    <!-- Backend API Client (HTTP) -->
+    <script>
+        // Detect API URL: file:// or localhost → local backend, otherwise production
+        window.TORCH_API_URL = 'https://api.torchatl.com/api';
+    </script>
+    <script src="api-client.js"></script>
+
     <!-- Data Layer -->
     <script src="data.js"></script>
 
@@ -1386,8 +2099,8 @@
     <script src="icloud-sync.js"></script>
     <script src="square-config.js"></script>
 
-    <!-- Square Web Payments SDK -->
-    <script src="https://sandbox.web.squarecdn.com/v1/square.js"></script>
+    <!-- Square Web Payments SDK (async to prevent blocking app.js) -->
+    <script src="https://sandbox.web.squarecdn.com/v1/square.js" async></script>
 
     <!-- Initialize Backend -->
     <script>

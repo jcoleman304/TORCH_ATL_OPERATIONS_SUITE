@@ -407,6 +407,44 @@
           "name": "TORCH Slack"
         }
       }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8090/webhooks/monthly-cycle-complete",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"triggered_by\": \"n8n-billing-automation\",\n  \"members_processed\": {{ $('Get Active Members').all().length }},\n  \"timestamp\": \"{{ $now.toISO() }}\"\n}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "notify-treasurer-qbo",
+      "name": "Notify Treasurer (QBO Invoices)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2670, 160],
+      "continueOnFail": true,
+      "notes": "Triggers QBO invoice generation in THE TREASURER agent"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8090/webhooks/payment-received",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": \"{{ $('Process Square Payment').item.json.payment.id }}\",\n  \"member_id\": \"{{ $('Generate Invoice').item.json.memberId }}\",\n  \"amount\": {{ $('Generate Invoice').item.json.total }},\n  \"type\": \"subscription\",\n  \"status\": \"completed\",\n  \"description\": \"{{ $('Generate Invoice').item.json.invoiceNumber }}\"\n}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "notify-treasurer-payment",
+      "name": "Notify Treasurer (Payment)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2230, 20],
+      "continueOnFail": true,
+      "notes": "Notifies Treasurer of successful payment for QBO status sync"
     }
   ],
   "connections": {
@@ -512,6 +550,11 @@
             "node": "Update Invoice Status (Paid)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Notify Treasurer (Payment)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -521,6 +564,17 @@
         [
           {
             "node": "Notify Billing Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Billing Complete": {
+      "main": [
+        [
+          {
+            "node": "Notify Treasurer (QBO Invoices)",
             "type": "main",
             "index": 0
           }

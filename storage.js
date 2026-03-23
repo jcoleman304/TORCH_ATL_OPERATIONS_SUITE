@@ -14,7 +14,11 @@ const TorchStorage = {
         CURRENT_ADMIN: 'torch_current_admin',
         SETTINGS: 'torch_settings',
         SYNC_MANIFEST: 'torch_sync_manifest',
-        LAST_SYNC: 'torch_last_sync'
+        LAST_SYNC: 'torch_last_sync',
+        NATE_TASKS: 'torch_nate_tasks',
+        VENDORS: 'torch_vendors',
+        MAINTENANCE_LOG: 'torch_maintenance_log',
+        LINEN_STANDARDS: 'torch_linen_standards'
     },
 
     // Initialize storage - load all data on app start
@@ -88,6 +92,29 @@ const TorchStorage = {
             currentAdminUser = loadedCurrentAdmin;
             console.log(`[TorchStorage] Loaded current admin session: ${currentAdminUser.name}`);
         }
+
+        // Operations Hub data
+        const loadedNateTasks = this.load(this.KEYS.NATE_TASKS);
+        const loadedVendors = this.load(this.KEYS.VENDORS);
+        const loadedMaintenanceLog = this.load(this.KEYS.MAINTENANCE_LOG);
+        const loadedLinenStandards = this.load(this.KEYS.LINEN_STANDARDS);
+
+        if (loadedNateTasks && loadedNateTasks.length > 0) {
+            nateTasks = loadedNateTasks;
+            console.log(`[TorchStorage] Loaded ${nateTasks.length} Nate tasks from storage`);
+        }
+        if (loadedVendors && loadedVendors.length > 0) {
+            vendors = loadedVendors;
+            console.log(`[TorchStorage] Loaded ${vendors.length} vendors from storage`);
+        }
+        if (loadedMaintenanceLog && loadedMaintenanceLog.length > 0) {
+            maintenanceLog = loadedMaintenanceLog;
+            console.log(`[TorchStorage] Loaded ${maintenanceLog.length} maintenance items from storage`);
+        }
+        if (loadedLinenStandards && loadedLinenStandards.length > 0) {
+            linenStandards = loadedLinenStandards;
+            console.log(`[TorchStorage] Loaded ${linenStandards.length} linen records from storage`);
+        }
     },
 
     // Load a single key from localStorage
@@ -132,6 +159,10 @@ const TorchStorage = {
         this.save(this.KEYS.ENGINEERS, engineers);
         this.save(this.KEYS.ADMIN_USERS, adminUsers);
         this.save(this.KEYS.SESSION_REPORTS, sessionReports);
+        this.save(this.KEYS.NATE_TASKS, nateTasks);
+        this.save(this.KEYS.VENDORS, vendors);
+        this.save(this.KEYS.MAINTENANCE_LOG, maintenanceLog);
+        this.save(this.KEYS.LINEN_STANDARDS, linenStandards);
 
         console.log('[TorchStorage] All data saved');
     },
@@ -167,6 +198,22 @@ const TorchStorage = {
 
     saveSessionReports() {
         return this.save(this.KEYS.SESSION_REPORTS, sessionReports);
+    },
+
+    saveNateTasks() {
+        return this.save(this.KEYS.NATE_TASKS, nateTasks);
+    },
+
+    saveVendors() {
+        return this.save(this.KEYS.VENDORS, vendors);
+    },
+
+    saveMaintenanceLog() {
+        return this.save(this.KEYS.MAINTENANCE_LOG, maintenanceLog);
+    },
+
+    saveLinenStandards() {
+        return this.save(this.KEYS.LINEN_STANDARDS, linenStandards);
     },
 
     saveCurrentAdmin() {

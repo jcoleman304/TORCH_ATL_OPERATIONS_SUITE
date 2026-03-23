@@ -1,5 +1,121 @@
 // TORCH ATL Operations Suite - Application Logic
 
+// XSS Prevention — escape user data before rendering in innerHTML
+function escapeHTML(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+// ============================================
+// AUTO-REFRESH POLLING MANAGER
+// ============================================
+
+const TorchPolling = {
+    intervals: {},
+    running: false,
+
+    config: {
+        dashboard: 30000,   // 30s
+        activity: 15000,    // 15s
+        bookings: 60000,    // 60s
+        health: 30000       // 30s
+    },
+
+    start() {
+        if (this.running) return;
+        this.running = true;
+        console.log('[Polling] Starting auto-refresh...');
+
+        // Health check
+        this.intervals.health = setInterval(() => this.checkHealth(), this.config.health);
+        this.checkHealth(); // Run immediately
+
+        // Dashboard refresh
+        this.intervals.dashboard = setInterval(async () => {
+            if (currentAdminUser?.role === 'admin' || currentAdminUser?.role === 'manager') {
+                try {
+                    await TorchAPI.refreshFromBackend();
+                    updateDashboard();
+                    this.updateTimestamp();
+                } catch (e) {
+                    console.warn('[Polling] Dashboard refresh failed:', e.message);
+                }
+            }
+        }, this.config.dashboard);
+
+        // Activity feed refresh
+        this.intervals.activity = setInterval(async () => {
+            if (currentAdminUser?.role === 'admin' || currentAdminUser?.role === 'manager') {
+                try {
+                    await TorchAPI.refreshActivityFeed();
+                    renderActivityFeed();
+                    this.updateTimestamp();
+                } catch (e) {
+                    console.warn('[Polling] Activity refresh failed:', e.message);
+                }
+            }
+        }, this.config.activity);
+
+        // Bookings refresh
+        this.intervals.bookings = setInterval(async () => {
+            try {
+                await TorchAPI.refreshBookings();
+                if (currentAdminUser?.role === 'admin' || currentAdminUser?.role === 'manager') {
+                    renderBookingsTable();
+                    renderUpcomingSessions();
+                }
+                this.updateTimestamp();
+            } catch (e) {
+                console.warn('[Polling] Bookings refresh failed:', e.message);
+            }
+        }, this.config.bookings);
+    },
+
+    stop() {
+        if (!this.running) return;
+        this.running = false;
+        Object.keys(this.intervals).forEach(key => {
+            clearInterval(this.intervals[key]);
+            delete this.intervals[key];
+        });
+        console.log('[Polling] Stopped auto-refresh');
+    },
+
+    async checkHealth() {
+        const statusEl = document.getElementById('connection-status');
+        const dotEl = document.getElementById('connection-dot');
+        const textEl = document.getElementById('connection-text');
+        if (!statusEl) return;
+
+        try {
+            if (typeof TorchBackend !== 'undefined') {
+                await TorchBackend.health();
+                statusEl.className = 'connection-status connected';
+                textEl.textContent = 'Connected';
+                TorchAPI.backendAvailable = true;
+            }
+        } catch (e) {
+            statusEl.className = 'connection-status disconnected';
+            textEl.textContent = 'Disconnected';
+            TorchAPI.backendAvailable = false;
+        }
+        this.updateTimestamp();
+    },
+
+    updateTimestamp() {
+        const el = document.getElementById('last-refreshed');
+        if (el) {
+            const now = new Date();
+            el.textContent = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        }
+    }
+};
+
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     // Check if user is already logged in
@@ -19,7 +135,7 @@ function showLogin() {
     document.getElementById('app-container').style.display = 'none';
 }
 
-function showApp() {
+async function showApp() {
     document.getElementById('login-screen').classList.remove('active');
     document.getElementById('app-container').style.display = 'flex';
 
@@ -30,7 +146,11 @@ function showApp() {
     initNavigation();
     initCountdown();
 
-    if (currentAdminUser.role === 'admin') {
+    // Refresh data from backend before rendering
+    await TorchAPI.refreshFromBackend();
+
+    const role = currentAdminUser.role;
+    if (role === 'admin' || role === 'manager') {
         updateDashboard();
         renderMembersTable();
         renderBookingsTable();
@@ -41,6 +161,8 @@ function showApp() {
         initSMSCharCount();
         renderEngineersTable();
         renderSessionReportsReview();
+        // Initialize operations tab
+        initOperationsCalendar();
     } else {
         // Engineer view
         renderEngineerCalendar();
@@ -51,45 +173,55 @@ function showApp() {
 
     // Update user info in sidebar
     document.getElementById('current-user-name').textContent = currentAdminUser.name;
-    document.getElementById('current-user-role').textContent = currentAdminUser.role === 'admin' ? 'Administrator' : 'Engineer';
+    const roleLabels = { admin: 'Administrator', manager: 'Manager', engineer: 'Engineer' };
+    document.getElementById('current-user-role').textContent = roleLabels[role] || role;
+
+    // Start auto-refresh polling
+    TorchPolling.start();
 }
 
-function handleAdminLogin(event) {
+async function handleAdminLogin(event) {
     event.preventDefault();
 
     const email = document.getElementById('admin-email').value;
     const code = document.getElementById('admin-code').value;
 
-    const result = TorchAPI.login(email, code);
+    try {
+        const result = await TorchAPI.login(email, code);
 
-    if (result.success) {
-        showToast(`Welcome, ${result.user.name}!`, 'success');
-        showApp();
-    } else {
-        showToast(result.errors[0], 'error');
+        if (result.success) {
+            showToast(`Welcome, ${result.user.name}!`, 'success');
+            showApp();
+        } else {
+            showToast(result.errors[0], 'error');
+        }
+    } catch (err) {
+        showToast(err.message || 'Login failed', 'error');
     }
 }
 
 function handleLogout() {
+    TorchPolling.stop();
     TorchAPI.logout();
     showLogin();
     showToast('Logged out successfully', 'info');
 }
 
 function applyRoleBasedUI() {
-    const isAdmin = currentAdminUser.role === 'admin';
+    const role = currentAdminUser.role;
+    const isAdminOrManager = role === 'admin' || role === 'manager';
 
-    // Show/hide elements based on role
+    // Show/hide elements based on role — manager sees everything admin sees
     document.querySelectorAll('.admin-only').forEach(el => {
-        el.style.display = isAdmin ? '' : 'none';
+        el.style.display = isAdminOrManager ? '' : 'none';
     });
 
     document.querySelectorAll('.engineer-only').forEach(el => {
-        el.style.display = isAdmin ? 'none' : '';
+        el.style.display = isAdminOrManager ? 'none' : '';
     });
 
     // Set default active tab based on role
-    if (isAdmin) {
+    if (isAdminOrManager) {
         switchTab('dashboard');
         document.querySelector('.nav-links li[data-tab="dashboard"]').classList.add('active');
     } else {
@@ -116,6 +248,11 @@ function switchTab(tabId) {
         tab.classList.remove('active');
     });
     document.getElementById(tabId).classList.add('active');
+
+    // Load operations data when switching to operations tab
+    if (tabId === 'operations') {
+        loadOperationsCalendar();
+    }
 }
 
 // Countdown Timer
@@ -131,7 +268,51 @@ function initCountdown() {
 }
 
 // Dashboard
-function updateDashboard() {
+async function updateDashboard() {
+    // Try backend-first dashboard
+    if (typeof TorchBackend !== 'undefined' && TorchBackend.auth.isAuthenticated()) {
+        try {
+            const dashboard = await TorchBackend.admin.getDashboard();
+            renderDashboardFromBackend(dashboard);
+            return;
+        } catch (e) {
+            console.warn('[Dashboard] Backend fetch failed, using local data:', e.message);
+        }
+    }
+    // Fallback to local data
+    renderDashboardFromLocal();
+}
+
+function renderDashboardFromBackend(dashboard) {
+    const m = dashboard.metrics;
+    document.getElementById('total-members').textContent = m.activeMembers;
+    document.getElementById('total-mrr').textContent = '$' + m.mrr.toLocaleString();
+    document.getElementById('weekly-sessions').textContent = m.monthlyBookings;
+
+    const maxMonthlyHours = 30 * 16;
+    const utilization = maxMonthlyHours > 0 ? Math.round((m.monthlyHours / maxMonthlyHours) * 100) : 0;
+    document.getElementById('utilization').textContent = utilization + '%';
+
+    // Tier bars from backend breakdown
+    const tierCounts = { Residency: 0, Member: 0, Session: 0 };
+    (dashboard.tierBreakdown || []).forEach(t => { tierCounts[t.tier] = parseInt(t.count); });
+
+    document.getElementById('bar-residency').style.width = (tierCounts.Residency / TIERS.Residency.cap * 100) + '%';
+    document.getElementById('bar-member').style.width = (tierCounts.Member / TIERS.Member.cap * 100) + '%';
+    document.getElementById('bar-session').style.width = (tierCounts.Session / TIERS.Session.cap * 100) + '%';
+
+    document.getElementById('count-residency').textContent = `${tierCounts.Residency}/${TIERS.Residency.cap}`;
+    document.getElementById('count-member').textContent = `${tierCounts.Member}/${TIERS.Member.cap}`;
+    document.getElementById('count-session').textContent = `${tierCounts.Session}/${TIERS.Session.cap}`;
+
+    // Upcoming sessions from local cache (already refreshed)
+    renderUpcomingSessions();
+
+    // Activity feed from backend
+    renderActivityFeedFromBackend(dashboard.recentActivity || []);
+}
+
+function renderDashboardFromLocal() {
     const activeMembers = members.filter(m => m.status === 'Active');
     const totalMRR = activeMembers.reduce((sum, m) => sum + m.monthlyRate, 0);
     const weeklyBookings = bookings.filter(b => {
@@ -145,13 +326,11 @@ function updateDashboard() {
     document.getElementById('total-mrr').textContent = '$' + totalMRR.toLocaleString();
     document.getElementById('weekly-sessions').textContent = weeklyBookings.length;
 
-    // Calculate utilization
     const totalHoursBooked = bookings.reduce((sum, b) => sum + b.hours, 0);
-    const maxMonthlyHours = 30 * 16; // 30 days * 16 hours
+    const maxMonthlyHours = 30 * 16;
     const utilization = Math.round((totalHoursBooked / maxMonthlyHours) * 100);
     document.getElementById('utilization').textContent = utilization + '%';
 
-    // Update tier bars
     const tierCounts = { Residency: 0, Member: 0, Session: 0 };
     activeMembers.forEach(m => tierCounts[m.tier]++);
 
@@ -163,7 +342,11 @@ function updateDashboard() {
     document.getElementById('count-member').textContent = `${tierCounts.Member}/${TIERS.Member.cap}`;
     document.getElementById('count-session').textContent = `${tierCounts.Session}/${TIERS.Session.cap}`;
 
-    // Render upcoming sessions
+    renderUpcomingSessions();
+    renderActivityFeed();
+}
+
+function renderUpcomingSessions() {
     const upcomingSessions = bookings
         .filter(b => new Date(b.date) >= new Date())
         .sort((a, b) => new Date(a.date) - new Date(b.date))
@@ -172,33 +355,55 @@ function updateDashboard() {
     const sessionsHtml = upcomingSessions.map(b => `
         <div class="session-item">
             <div>
-                <div class="member-name">${b.memberName}</div>
+                <div class="member-name">${escapeHTML(b.memberName)}</div>
                 <div class="session-time">${formatDate(b.date)} • ${formatTime(b.startTime)} - ${formatTime(b.endTime)}</div>
             </div>
-            <span class="tier-badge ${members.find(m => m.id === b.memberId)?.tier.toLowerCase()}">${b.type}</span>
+            <span class="tier-badge ${members.find(m => m.id == b.memberId)?.tier?.toLowerCase() || ''}">${escapeHTML(b.type)}</span>
         </div>
     `).join('');
     document.getElementById('upcoming-sessions').innerHTML = sessionsHtml || '<p class="text-muted">No upcoming sessions</p>';
+}
 
-    // Render activity feed
+function renderActivityFeedFromBackend(activities) {
+    const activityHtml = activities.map(a => {
+        const age = Date.now() - new Date(a.created_at).getTime();
+        const mins = Math.floor(age / 60000);
+        let timeStr;
+        if (mins < 1) timeStr = 'Just now';
+        else if (mins < 60) timeStr = `${mins} min ago`;
+        else if (mins < 1440) timeStr = `${Math.floor(mins / 60)} hours ago`;
+        else timeStr = `${Math.floor(mins / 1440)} days ago`;
+
+        const text = `${(a.action || '').replace(/_/g, ' ')}: ${a.entity_type || ''} ${a.entity_id ? a.entity_id.slice(0, 8) : ''}`;
+        return `
+            <div class="activity-item">
+                <span>${escapeHTML(text)}</span>
+                <span class="time">${escapeHTML(timeStr)}</span>
+            </div>
+        `;
+    }).join('');
+    document.getElementById('activity-feed').innerHTML = activityHtml || '<p class="text-muted">No recent activity</p>';
+}
+
+function renderActivityFeed() {
     const activityHtml = activityFeed.map(a => `
         <div class="activity-item">
-            <span>${a.text}</span>
-            <span class="time">${a.time}</span>
+            <span>${escapeHTML(a.text)}</span>
+            <span class="time">${escapeHTML(a.time)}</span>
         </div>
     `).join('');
-    document.getElementById('activity-feed').innerHTML = activityHtml;
+    document.getElementById('activity-feed').innerHTML = activityHtml || '<p class="text-muted">No recent activity</p>';
 }
 
 // Members Table
 function renderMembersTable() {
     const tbody = document.getElementById('members-tbody');
     tbody.innerHTML = members.map(m => `
-        <tr data-tier="${m.tier}" data-status="${m.status}" data-name="${m.name.toLowerCase()}">
+        <tr data-tier="${escapeHTML(m.tier)}" data-status="${escapeHTML(m.status)}" data-name="${escapeHTML(m.name?.toLowerCase())}">
             <td>
                 <div style="display: flex; flex-direction: column;">
-                    <strong>${m.name}</strong>
-                    <small style="color: var(--text-secondary)">${m.email}</small>
+                    <strong>${escapeHTML(m.name)}</strong>
+                    <small style="color: var(--text-secondary)">${escapeHTML(m.email)}</small>
                 </div>
             </td>
             <td><span class="tier-badge ${m.tier.toLowerCase()}">${m.tier}</span></td>
@@ -207,8 +412,8 @@ function renderMembersTable() {
             <td>$${m.monthlyRate.toLocaleString()}${m.founding ? ' <small>(founding)</small>' : ''}</td>
             <td>${formatDate(m.startDate)}</td>
             <td>
-                <button class="action-btn" onclick="viewMember(${m.id})">View</button>
-                <button class="action-btn" onclick="editMember(${m.id})">Edit</button>
+                <button class="action-btn" onclick="viewMember('${m.id}')">View</button>
+                <button class="action-btn" onclick="editMember('${m.id}')">Edit</button>
             </td>
         </tr>
     `).join('');
@@ -234,46 +439,43 @@ function filterMembers() {
 }
 
 // Add Member
-function addMember(event) {
+async function addMember(event) {
     event.preventDefault();
 
     const tier = document.getElementById('new-member-tier').value;
     const isFoundng = document.getElementById('new-member-founding').value === 'yes';
-    const tierConfig = TIERS[tier];
 
-    const newMember = {
-        id: members.length + 1,
+    const memberData = {
         name: document.getElementById('new-member-name').value,
         email: document.getElementById('new-member-email').value,
         phone: document.getElementById('new-member-phone').value,
         tier: tier,
-        status: 'Pending',
-        hoursUsed: 0,
-        hoursTotal: tierConfig.hours,
-        monthlyRate: isFoundng ? tierConfig.foundingPrice : tierConfig.price,
-        startDate: new Date().toISOString().split('T')[0],
-        company: document.getElementById('new-member-company').value,
         founding: isFoundng,
-        accessCode: '',
+        company: document.getElementById('new-member-company').value,
         notes: document.getElementById('new-member-notes').value
     };
 
-    members.push(newMember);
-    renderMembersTable();
-    updateDashboard();
-    populateMemberDropdowns();
-    closeModal('add-member-modal');
-    showToast('Member added successfully', 'success');
+    const result = await TorchAPI.createMember(memberData);
+
+    if (result.success) {
+        renderMembersTable();
+        updateDashboard();
+        populateMemberDropdowns();
+        closeModal('add-member-modal');
+        showToast('Member added successfully', 'success');
+    } else {
+        showToast(result.errors[0], 'error');
+    }
 }
 
 function viewMember(id) {
-    const member = members.find(m => m.id === id);
-    showToast(`Viewing ${member.name}`, 'info');
+    const member = members.find(m => m.id == id);
+    if (member) showToast(`Viewing ${member.name}`, 'info');
 }
 
 function editMember(id) {
-    const member = members.find(m => m.id === id);
-    showToast(`Editing ${member.name}`, 'info');
+    const member = members.find(m => m.id == id);
+    if (member) showToast(`Editing ${member.name}`, 'info');
 }
 
 // Bookings
@@ -283,13 +485,13 @@ function renderBookingsTable() {
         <tr>
             <td>${formatDate(b.date)}</td>
             <td>${formatTime(b.startTime)} - ${formatTime(b.endTime)}</td>
-            <td>${b.memberName}</td>
+            <td>${escapeHTML(b.memberName)}</td>
             <td>${b.hours} hrs</td>
             <td>${b.guests}</td>
-            <td><span class="status-badge active">${b.status}</span></td>
+            <td><span class="status-badge active">${escapeHTML(b.status)}</span></td>
             <td>
-                <button class="action-btn" onclick="viewBooking(${b.id})">View</button>
-                <button class="action-btn" onclick="cancelBooking(${b.id})">Cancel</button>
+                <button class="action-btn" onclick="viewBooking('${b.id}')">View</button>
+                <button class="action-btn" onclick="cancelBooking('${b.id}')">Cancel</button>
             </td>
         </tr>
     `).join('');
@@ -367,40 +569,218 @@ function changeMonth(delta) {
 }
 
 function selectDate(dateStr) {
-    document.getElementById('booking-date').value = dateStr;
+    // Set the first session date input in the new multi-date form
+    const firstDateInput = document.querySelector('#session-dates-container .session-date-input');
+    if (firstDateInput) {
+        firstDateInput.value = dateStr;
+    }
     openModal('add-booking-modal');
 }
 
-function addBooking(event) {
+async function addBooking(event) {
     event.preventDefault();
 
-    const memberId = parseInt(document.getElementById('booking-member').value);
-    const member = members.find(m => m.id === memberId);
+    const memberId = document.getElementById('booking-member').value;
+    const member = members.find(m => m.id == memberId);
+    if (!member) { showToast('Please select a member', 'error'); return; }
 
-    const startTime = document.getElementById('booking-start').value;
-    const endTime = document.getElementById('booking-end').value;
-    const hours = calculateHours(startTime, endTime);
+    const type = document.getElementById('booking-type').value;
+    const room = document.getElementById('booking-room').value || undefined;
+    const guests = parseInt(document.getElementById('booking-guests').value) || 0;
+    const guestNamesRaw = document.getElementById('booking-guest-names').value;
+    const guestNames = guestNamesRaw ? guestNamesRaw.split(',').map(n => n.trim()).filter(Boolean) : [];
 
-    const newBooking = {
-        id: bookings.length + 1,
-        memberId: memberId,
-        memberName: member.name,
-        date: document.getElementById('booking-date').value,
-        startTime: startTime,
-        endTime: endTime,
-        hours: hours,
-        guests: parseInt(document.getElementById('booking-guests').value),
-        guestNames: document.getElementById('booking-guest-names').value.split('\n').filter(n => n.trim()),
-        type: document.getElementById('booking-type').value,
-        status: 'Confirmed'
+    // Collect all session date rows
+    const dateRows = document.querySelectorAll('#session-dates-container .session-date-row');
+    const sessions = [];
+
+    dateRows.forEach(row => {
+        const dateInput = row.querySelector('.session-date-input');
+        const activeBlock = row.querySelector('.time-block.active');
+        if (!dateInput || !dateInput.value) return;
+
+        const block = activeBlock ? activeBlock.dataset.block : 'day';
+        let startTime, endTime;
+        if (block === 'night') {
+            startTime = '20:00';
+            endTime = '03:00';
+        } else {
+            startTime = '12:00';
+            endTime = '19:00';
+        }
+
+        sessions.push({ date: dateInput.value, startTime, endTime });
+    });
+
+    if (sessions.length === 0) {
+        showToast('Please select at least one date', 'error');
+        return;
+    }
+
+    // Create a booking for each date
+    let successCount = 0;
+    let lastError = '';
+
+    for (const session of sessions) {
+        const bookingData = {
+            memberId: member._backendId || member.id,
+            memberName: member.name,
+            date: session.date,
+            startTime: session.startTime,
+            endTime: session.endTime,
+            guests: guests,
+            guestNames: guestNames,
+            type: type,
+            room: room
+        };
+
+        const result = await TorchAPI.createBooking(bookingData);
+        if (result.success) {
+            successCount++;
+        } else {
+            lastError = result.errors ? result.errors[0] : 'Booking failed';
+        }
+    }
+
+    if (successCount > 0) {
+        renderBookingsTable();
+        renderCalendar();
+        updateDashboard();
+        closeModal('add-booking-modal');
+        resetBookingForm();
+        const msg = successCount === 1 ? 'Session booked' : `${successCount} sessions booked`;
+        showToast(msg, 'success');
+    }
+
+    if (lastError) {
+        showToast(lastError, 'error');
+    }
+}
+
+// ============================================
+// ROOM / DATE / TIME BLOCK HELPERS
+// ============================================
+
+function selectRoom(roomValue, btnEl) {
+    // Toggle selection - clicking the same room deselects it
+    const input = document.getElementById('booking-room');
+    const allBtns = document.querySelectorAll('.room-option');
+
+    if (input.value === roomValue) {
+        input.value = '';
+        allBtns.forEach(b => b.classList.remove('selected'));
+    } else {
+        input.value = roomValue;
+        allBtns.forEach(b => b.classList.remove('selected'));
+        btnEl.classList.add('selected');
+    }
+}
+
+function selectTimeBlock(btnEl) {
+    const toggle = btnEl.closest('.time-block-toggle');
+    toggle.querySelectorAll('.time-block').forEach(b => b.classList.remove('active'));
+    btnEl.classList.add('active');
+}
+
+let sessionDateCounter = 1; // row 0 already exists
+
+function addSessionDate() {
+    const container = document.getElementById('session-dates-container');
+    const existingRows = container.querySelectorAll('.session-date-row');
+    if (existingRows.length >= 3) {
+        showToast('Maximum 3 session dates', 'info');
+        return;
+    }
+
+    const idx = sessionDateCounter++;
+    const row = document.createElement('div');
+    row.className = 'session-date-row';
+    row.dataset.row = idx;
+    row.innerHTML = `
+        <input type="date" class="session-date-input" required>
+        <div class="time-block-toggle">
+            <button type="button" class="time-block active" data-block="day" onclick="selectTimeBlock(this)">
+                Day <small>12p&ndash;7p</small>
+            </button>
+            <button type="button" class="time-block" data-block="night" onclick="selectTimeBlock(this)">
+                Night <small>8p&ndash;3a</small>
+            </button>
+        </div>
+        <button type="button" class="btn-remove-date" onclick="removeSessionDate(this)">&times;</button>
+    `;
+    container.appendChild(row);
+}
+
+function removeSessionDate(btnEl) {
+    const row = btnEl.closest('.session-date-row');
+    row.style.animation = 'fadeSlideIn 0.2s ease reverse';
+    setTimeout(() => row.remove(), 200);
+}
+
+function resetBookingForm() {
+    // Reset room
+    document.getElementById('booking-room').value = '';
+    document.querySelectorAll('.room-option').forEach(b => b.classList.remove('selected'));
+
+    // Reset date rows back to 1
+    const container = document.getElementById('session-dates-container');
+    const rows = container.querySelectorAll('.session-date-row');
+    rows.forEach((row, i) => {
+        if (i === 0) {
+            row.querySelector('.session-date-input').value = '';
+            const dayBlock = row.querySelector('.time-block[data-block="day"]');
+            const nightBlock = row.querySelector('.time-block[data-block="night"]');
+            if (dayBlock) dayBlock.classList.add('active');
+            if (nightBlock) nightBlock.classList.remove('active');
+        } else {
+            row.remove();
+        }
+    });
+    sessionDateCounter = 1;
+
+    // Reset other fields
+    document.getElementById('booking-guests').value = '0';
+    document.getElementById('booking-guest-names').value = '';
+}
+
+async function submitEstateRequest(event) {
+    event.preventDefault();
+
+    const data = {
+        name: document.getElementById('estate-name').value.trim(),
+        email: document.getElementById('estate-email').value.trim(),
+        phone: document.getElementById('estate-phone').value.trim() || undefined,
+        preferredDates: [document.getElementById('estate-dates').value.trim()],
+        eventDetails: document.getElementById('estate-details').value.trim()
     };
 
-    bookings.push(newBooking);
-    renderBookingsTable();
-    renderCalendar();
-    updateDashboard();
-    closeModal('add-booking-modal');
-    showToast('Booking created successfully', 'success');
+    if (!data.name || !data.email) {
+        showToast('Name and email are required', 'error');
+        return;
+    }
+
+    // Try backend
+    if (typeof TorchBackend !== 'undefined') {
+        try {
+            await TorchBackend.estateRequests.submit(data);
+            closeModal('estate-request-modal');
+            showToast('Estate access request submitted!', 'success');
+            // Reset form
+            document.getElementById('estate-name').value = '';
+            document.getElementById('estate-email').value = '';
+            document.getElementById('estate-phone').value = '';
+            document.getElementById('estate-dates').value = '';
+            document.getElementById('estate-details').value = '';
+            return;
+        } catch (err) {
+            showToast(err.message || 'Request failed', 'error');
+            return;
+        }
+    }
+
+    // Fallback if no backend
+    closeModal('estate-request-modal');
+    showToast('Estate access request submitted!', 'success');
 }
 
 function calculateHours(start, end) {
@@ -412,18 +792,20 @@ function calculateHours(start, end) {
 }
 
 function viewBooking(id) {
-    const booking = bookings.find(b => b.id === id);
-    showToast(`Viewing booking for ${booking.memberName}`, 'info');
+    const booking = bookings.find(b => b.id == id);
+    if (booking) showToast(`Viewing booking for ${booking.memberName}`, 'info');
 }
 
-function cancelBooking(id) {
-    const index = bookings.findIndex(b => b.id === id);
-    if (index > -1) {
-        bookings.splice(index, 1);
+async function cancelBooking(id) {
+    const result = await TorchAPI.cancelBooking(id);
+
+    if (result.success) {
         renderBookingsTable();
         renderCalendar();
         updateDashboard();
         showToast('Booking cancelled', 'success');
+    } else {
+        showToast(result.errors ? result.errors[0] : 'Cancel failed', 'error');
     }
 }
 
@@ -460,8 +842,8 @@ function sendSMS(event) {
 function renderSMSHistory() {
     const historyHtml = smsHistory.map(sms => `
         <div class="history-item">
-            <div class="message">${sms.message.substring(0, 60)}${sms.message.length > 60 ? '...' : ''}</div>
-            <div class="meta">${sms.recipients} • ${sms.sentAt}</div>
+            <div class="message">${escapeHTML(sms.message?.substring(0, 60))}${sms.message?.length > 60 ? '...' : ''}</div>
+            <div class="meta">${escapeHTML(sms.recipients)} • ${escapeHTML(sms.sentAt)}</div>
         </div>
     `).join('');
     document.getElementById('sms-history').innerHTML = historyHtml || '<p>No SMS history</p>';
@@ -516,24 +898,24 @@ function switchEmailTab(tab) {
     if (tab === 'sent') {
         html = emailHistory.sent.map(e => `
             <div class="email-item">
-                <span class="subject">${e.subject}</span>
-                <span class="recipients">${e.recipients}</span>
-                <span class="date">${e.sentAt}</span>
+                <span class="subject">${escapeHTML(e.subject)}</span>
+                <span class="recipients">${escapeHTML(e.recipients)}</span>
+                <span class="date">${escapeHTML(e.sentAt)}</span>
             </div>
         `).join('');
     } else if (tab === 'scheduled') {
         html = emailHistory.scheduled.map(e => `
             <div class="email-item">
-                <span class="subject">${e.subject}</span>
-                <span class="recipients">${e.recipients}</span>
-                <span class="date">Scheduled: ${e.scheduledFor}</span>
+                <span class="subject">${escapeHTML(e.subject)}</span>
+                <span class="recipients">${escapeHTML(e.recipients)}</span>
+                <span class="date">Scheduled: ${escapeHTML(e.scheduledFor)}</span>
             </div>
         `).join('');
     } else if (tab === 'drafts') {
         html = emailHistory.drafts.map(e => `
             <div class="email-item">
-                <span class="subject">${e.subject}</span>
-                <span class="date">Last edited: ${e.lastEdited}</span>
+                <span class="subject">${escapeHTML(e.subject)}</span>
+                <span class="date">Last edited: ${escapeHTML(e.lastEdited)}</span>
             </div>
         `).join('');
     }
@@ -612,7 +994,7 @@ function showToast(message, type = 'info') {
     toast.className = `toast ${type}`;
     toast.innerHTML = `
         <span>${type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ'}</span>
-        <span>${message}</span>
+        <span>${escapeHTML(message)}</span>
     `;
     container.appendChild(toast);
 
@@ -626,7 +1008,7 @@ function showToast(message, type = 'info') {
 function populateMemberDropdowns() {
     const select = document.getElementById('booking-member');
     select.innerHTML = members.map(m => `
-        <option value="${m.id}">${m.name} (${m.tier})</option>
+        <option value="${m.id}">${escapeHTML(m.name)} (${escapeHTML(m.tier)})</option>
     `).join('');
 }
 
@@ -644,12 +1026,25 @@ function formatTime(timeStr) {
     return `${hour12}:${minutes} ${ampm}`;
 }
 
-// Keyboard shortcuts
+// Keyboard shortcuts — close only the topmost modal (highest z-index)
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        document.querySelectorAll('.modal.active').forEach(modal => {
-            modal.classList.remove('active');
+        const activeModals = Array.from(document.querySelectorAll('.modal.active'));
+        if (activeModals.length === 0) return;
+
+        // Find the modal with the highest z-index
+        let topModal = activeModals[0];
+        let topZ = parseInt(getComputedStyle(topModal).zIndex) || 0;
+
+        activeModals.forEach(modal => {
+            const z = parseInt(getComputedStyle(modal).zIndex) || 0;
+            if (z > topZ) {
+                topZ = z;
+                topModal = modal;
+            }
         });
+
+        topModal.classList.remove('active');
     }
 });
 
@@ -910,13 +1305,13 @@ function renderEngineerCardsView() {
         const stats = e.stats || { totalSessions: 0, totalHours: 0, totalEarnings: 0, averageRating: 0 };
 
         return `
-            <div class="engineer-card" data-id="${e.id}" data-name="${e.name.toLowerCase()}" data-role="${e.role}" data-status="${e.status}">
+            <div class="engineer-card" data-id="${e.id}" data-name="${escapeHTML(e.name?.toLowerCase())}" data-role="${escapeHTML(e.role)}" data-status="${escapeHTML(e.status)}">
                 <div class="engineer-card-header">
-                    <div class="engineer-avatar">${initials}</div>
+                    <div class="engineer-avatar">${escapeHTML(initials)}</div>
                     <div class="engineer-card-info">
-                        <h4>${e.name}</h4>
-                        <p class="engineer-email">${e.email}</p>
-                        <span class="role-badge ${e.role === 'Lead Engineer' ? 'lead' : 'standard'}">${e.role}</span>
+                        <h4>${escapeHTML(e.name)}</h4>
+                        <p class="engineer-email">${escapeHTML(e.email)}</p>
+                        <span class="role-badge ${e.role === 'Lead Engineer' ? 'lead' : 'standard'}">${escapeHTML(e.role)}</span>
                         <span class="status-badge ${e.status.toLowerCase()}" style="margin-left: 8px;">${e.status}</span>
                     </div>
                 </div>
@@ -942,8 +1337,8 @@ function renderEngineerCardsView() {
                     ${e.specialties.map(s => `<span class="specialty-tag">${s}</span>`).join('')}
                 </div>
                 <div class="engineer-card-actions">
-                    <button class="btn secondary" onclick="openEngineerProfile(${e.id})">View Profile</button>
-                    <button class="btn primary" onclick="editEngineer(${e.id})">Edit</button>
+                    <button class="btn secondary" onclick="openEngineerProfile('${e.id}')">View Profile</button>
+                    <button class="btn primary" onclick="editEngineer('${e.id}')">Edit</button>
                 </div>
             </div>
         `;
@@ -961,14 +1356,14 @@ function renderEngineerTableView() {
         const monthStats = e.monthlyStats && e.monthlyStats[currentMonth] ? e.monthlyStats[currentMonth] : { earnings: 0 };
 
         return `
-            <tr data-id="${e.id}" data-name="${e.name.toLowerCase()}" data-role="${e.role}" data-status="${e.status}">
+            <tr data-id="${e.id}" data-name="${escapeHTML(e.name?.toLowerCase())}" data-role="${escapeHTML(e.role)}" data-status="${escapeHTML(e.status)}">
                 <td>
                     <div style="display: flex; flex-direction: column;">
-                        <strong>${e.name}</strong>
-                        <small style="color: var(--text-secondary)">${e.email}</small>
+                        <strong>${escapeHTML(e.name)}</strong>
+                        <small style="color: var(--text-secondary)">${escapeHTML(e.email)}</small>
                     </div>
                 </td>
-                <td><span class="role-badge ${e.role === 'Lead Engineer' ? 'lead' : 'standard'}">${e.role}</span></td>
+                <td><span class="role-badge ${e.role === 'Lead Engineer' ? 'lead' : 'standard'}">${escapeHTML(e.role)}</span></td>
                 <td>${e.specialties.join(', ')}</td>
                 <td>${stats.totalSessions}</td>
                 <td>
@@ -978,8 +1373,8 @@ function renderEngineerTableView() {
                 <td>$${monthStats.earnings.toLocaleString()}</td>
                 <td><span class="status-badge ${e.status.toLowerCase()}">${e.status}</span></td>
                 <td>
-                    <button class="action-btn" onclick="openEngineerProfile(${e.id})">View</button>
-                    <button class="action-btn" onclick="editEngineer(${e.id})">Edit</button>
+                    <button class="action-btn" onclick="openEngineerProfile('${e.id}')">View</button>
+                    <button class="action-btn" onclick="editEngineer('${e.id}')">Edit</button>
                 </td>
             </tr>
         `;
@@ -1034,7 +1429,7 @@ function filterEngineersCRM() {
 
 // Engineer Profile Modal
 function openEngineerProfile(engineerId) {
-    const engineer = engineers.find(e => e.id === engineerId);
+    const engineer = engineers.find(e => e.id == engineerId);
     if (!engineer) return;
 
     currentViewingEngineerId = engineerId;
@@ -1062,7 +1457,7 @@ function openEngineerProfile(engineerId) {
     // Overview tab
     document.getElementById('profile-bio').textContent = engineer.bio || 'No bio available.';
     document.getElementById('profile-specialties').innerHTML = engineer.specialties.map(s =>
-        `<span class="specialty-tag">${s}</span>`
+        `<span class="specialty-tag">${escapeHTML(s)}</span>`
     ).join('');
 
     document.getElementById('profile-month-sessions').textContent = monthStats.sessions;
@@ -1079,10 +1474,10 @@ function openEngineerProfile(engineerId) {
         engineerBookings.map(b => `
             <div class="recent-session-item">
                 <div class="session-info">
-                    <span class="session-member">${b.memberName}</span>
+                    <span class="session-member">${escapeHTML(b.memberName)}</span>
                     <span class="session-date">${formatDate(b.date)} • ${b.hours} hrs</span>
                 </div>
-                <span class="status-badge ${b.engineerStatus}">${b.engineerStatus}</span>
+                <span class="status-badge ${escapeHTML(b.engineerStatus)}">${escapeHTML(b.engineerStatus)}</span>
             </div>
         `).join('') : '<p style="color: var(--text-muted);">No sessions yet</p>';
 
@@ -1152,11 +1547,11 @@ function renderProfileSessions(engineerId) {
         filteredBookings.map(b => `
             <div class="profile-session-item">
                 <div class="session-main-info">
-                    <div class="member-name">${b.memberName}</div>
-                    <div class="session-meta">${formatDate(b.date)} • ${formatTime(b.startTime)} - ${formatTime(b.endTime)} • ${b.type}</div>
+                    <div class="member-name">${escapeHTML(b.memberName)}</div>
+                    <div class="session-meta">${formatDate(b.date)} • ${formatTime(b.startTime)} - ${formatTime(b.endTime)} • ${escapeHTML(b.type)}</div>
                 </div>
                 <span class="session-hours-badge">${b.hours} hrs</span>
-                <span class="status-badge ${b.engineerStatus}" style="margin-left: 8px;">${b.engineerStatus}</span>
+                <span class="status-badge ${escapeHTML(b.engineerStatus)}" style="margin-left: 8px;">${escapeHTML(b.engineerStatus)}</span>
             </div>
         `).join('') : '<p style="color: var(--text-muted); padding: 20px; text-align: center;">No sessions found</p>';
 }
@@ -1168,8 +1563,8 @@ function renderEngineerNotes(engineer) {
     container.innerHTML = notes.length > 0 ?
         notes.map(note => `
             <div class="note-item">
-                <p class="note-text">${note.text}</p>
-                <div class="note-meta">${note.author} • ${new Date(note.createdAt).toLocaleDateString()}</div>
+                <p class="note-text">${escapeHTML(note.text)}</p>
+                <div class="note-meta">${escapeHTML(note.author)} • ${new Date(note.createdAt).toLocaleDateString()}</div>
             </div>
         `).join('') : '<p style="color: var(--text-muted); text-align: center;">No notes yet</p>';
 }
@@ -1182,7 +1577,7 @@ function switchProfileTab(tab) {
     document.getElementById(`profile-tab-${tab}`).classList.add('active');
 }
 
-function addEngineerNote() {
+async function addEngineerNote() {
     if (!currentViewingEngineerId) return;
 
     const noteText = document.getElementById('new-engineer-note').value.trim();
@@ -1191,26 +1586,15 @@ function addEngineerNote() {
         return;
     }
 
-    const engineer = engineers.find(e => e.id === currentViewingEngineerId);
-    if (!engineer) return;
+    const result = await TorchAPI.addEngineerNote(currentViewingEngineerId, noteText);
 
-    if (!engineer.notes) engineer.notes = [];
-
-    const newNote = {
-        id: Date.now(),
-        text: noteText,
-        author: currentAdminUser.name,
-        createdAt: new Date().toISOString()
-    };
-
-    engineer.notes.push(newNote);
-    renderEngineerNotes(engineer);
-    document.getElementById('new-engineer-note').value = '';
-    showToast('Note added successfully', 'success');
-
-    // Save to storage
-    if (typeof TorchStorage !== 'undefined' && TorchStorage.saveEngineers) {
-        TorchStorage.saveEngineers();
+    if (result.success) {
+        const engineer = engineers.find(e => e.id === currentViewingEngineerId);
+        if (engineer) renderEngineerNotes(engineer);
+        document.getElementById('new-engineer-note').value = '';
+        showToast('Note added successfully', 'success');
+    } else {
+        showToast(result.errors ? result.errors[0] : 'Failed to add note', 'error');
     }
 }
 
@@ -1241,7 +1625,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-function addEngineer(event) {
+async function addEngineer(event) {
     event.preventDefault();
 
     const specialties = [];
@@ -1260,14 +1644,12 @@ function addEngineer(event) {
         bio: document.getElementById('new-engineer-bio').value
     };
 
-    const result = TorchAPI.createEngineer(engineerData);
+    const result = await TorchAPI.createEngineer(engineerData);
 
     if (result.success) {
         closeModal('add-engineer-modal');
         renderEngineersTable();
-        showToast(`Engineer ${result.engineer.name} added successfully`, 'success');
-
-        // Reset form
+        showToast(`Engineer ${engineerData.name} added successfully`, 'success');
         document.getElementById('add-engineer-modal').querySelector('form').reset();
     } else {
         showToast(result.errors[0], 'error');
@@ -1279,7 +1661,7 @@ function viewEngineer(id) {
 }
 
 function editEngineer(id) {
-    const engineer = engineers.find(e => e.id === id);
+    const engineer = engineers.find(e => e.id == id);
     if (!engineer) return;
 
     // Populate edit form
@@ -1300,44 +1682,39 @@ function editEngineer(id) {
     openModal('edit-engineer-modal');
 }
 
-function saveEngineerEdit(event) {
+async function saveEngineerEdit(event) {
     event.preventDefault();
 
-    const engineerId = parseInt(document.getElementById('edit-engineer-id').value);
-    const engineer = engineers.find(e => e.id === engineerId);
+    const engineerId = document.getElementById('edit-engineer-id').value;
+    const engineer = engineers.find(e => e.id == engineerId);
     if (!engineer) return;
 
-    // Get specialties
     const specialties = [];
     document.querySelectorAll('#edit-engineer-specialties input:checked').forEach(cb => {
         specialties.push(cb.value);
     });
 
-    // Update engineer
-    engineer.name = document.getElementById('edit-engineer-name').value;
-    engineer.email = document.getElementById('edit-engineer-email').value;
-    engineer.phone = document.getElementById('edit-engineer-phone').value;
-    engineer.role = document.getElementById('edit-engineer-role').value;
-    engineer.rate = parseInt(document.getElementById('edit-engineer-rate').value) || 60;
-    engineer.status = document.getElementById('edit-engineer-status').value;
-    engineer.bio = document.getElementById('edit-engineer-bio').value;
-    engineer.specialties = specialties;
-    engineer.updatedAt = new Date().toISOString();
+    const fields = {
+        name: document.getElementById('edit-engineer-name').value,
+        email: document.getElementById('edit-engineer-email').value,
+        phone: document.getElementById('edit-engineer-phone').value,
+        role: document.getElementById('edit-engineer-role').value,
+        rate: parseInt(document.getElementById('edit-engineer-rate').value) || 60,
+        status: document.getElementById('edit-engineer-status').value,
+        bio: document.getElementById('edit-engineer-bio').value,
+        specialties: specialties
+    };
 
-    // Update corresponding admin user if exists
-    const adminUser = adminUsers.find(a => a.engineerId === engineerId);
-    if (adminUser) {
-        adminUser.name = engineer.name;
-        adminUser.email = engineer.email;
-        TorchStorage.saveAdminUsers();
+    const result = await TorchAPI.updateEngineer(engineer.id, fields);
+
+    if (result.success) {
+        closeModal('edit-engineer-modal');
+        if (typeof renderEngineersCRM === 'function') renderEngineersCRM();
+        else renderEngineersTable();
+        showToast(`${fields.name} updated successfully`, 'success');
+    } else {
+        showToast(result.errors ? result.errors[0] : 'Update failed', 'error');
     }
-
-    // Save to storage
-    TorchStorage.saveEngineers();
-
-    closeModal('edit-engineer-modal');
-    renderEngineersCRM();
-    showToast(`${engineer.name} updated successfully`, 'success');
 }
 
 // Populate engineer dropdown in booking forms
@@ -1386,18 +1763,18 @@ function renderSessionReportsReview() {
         <div class="report-card ${r.status}">
             <div class="report-header">
                 <div>
-                    <h4>${r.memberName}</h4>
+                    <h4>${escapeHTML(r.memberName)}</h4>
                     <span class="report-date">${formatDate(r.sessionDate)}</span>
                 </div>
                 <span class="status-badge ${r.status}">${r.status}</span>
             </div>
             <div class="report-meta">
-                <span>Engineer: ${r.engineerName}</span>
+                <span>Engineer: ${escapeHTML(r.engineerName)}</span>
                 <span>Hours: ${r.actualHours}</span>
-                <span>Quality: ${'★'.repeat(r.sessionQuality)}${'☆'.repeat(5 - r.sessionQuality)}</span>
+                <span>Quality: ${'★'.repeat(r.sessionQuality || 0)}${'☆'.repeat(5 - (r.sessionQuality || 0))}</span>
             </div>
-            <p class="report-notes">${r.notes ? r.notes.substring(0, 100) + (r.notes.length > 100 ? '...' : '') : 'No notes'}</p>
-            <button class="btn secondary small" onclick="viewReport(${r.id})">View Details</button>
+            <p class="report-notes">${r.notes ? escapeHTML(r.notes.substring(0, 100)) + (r.notes.length > 100 ? '...' : '') : 'No notes'}</p>
+            <button class="btn secondary small" onclick="viewReport('${r.id}')">View Details</button>
         </div>
     `).join('');
 }
@@ -1419,7 +1796,7 @@ function filterReports() {
 let currentViewingReportId = null;
 
 function viewReport(reportId) {
-    const report = sessionReports.find(r => r.id === reportId);
+    const report = sessionReports.find(r => r.id == reportId);
     if (!report) return;
 
     currentViewingReportId = reportId;
@@ -1429,12 +1806,12 @@ function viewReport(reportId) {
         <div class="report-detail-grid">
             <div class="detail-section">
                 <h4>Session Information</h4>
-                <div class="detail-row"><span>Member:</span><span>${report.memberName}</span></div>
+                <div class="detail-row"><span>Member:</span><span>${escapeHTML(report.memberName)}</span></div>
                 <div class="detail-row"><span>Date:</span><span>${formatDate(report.sessionDate)}</span></div>
                 <div class="detail-row"><span>Time:</span><span>${formatTime(report.actualStartTime)} - ${formatTime(report.actualEndTime)}</span></div>
                 <div class="detail-row"><span>Hours:</span><span>${report.actualHours}</span></div>
-                <div class="detail-row"><span>Work Type:</span><span>${report.workType}</span></div>
-                <div class="detail-row"><span>Project:</span><span>${report.projectName || 'N/A'}</span></div>
+                <div class="detail-row"><span>Work Type:</span><span>${escapeHTML(report.workType)}</span></div>
+                <div class="detail-row"><span>Project:</span><span>${escapeHTML(report.projectName) || 'N/A'}</span></div>
             </div>
             <div class="detail-section">
                 <h4>Engineer</h4>
@@ -1477,17 +1854,17 @@ function viewReport(reportId) {
     openModal('view-report-modal');
 }
 
-function markReportReviewed() {
+async function markReportReviewed() {
     if (!currentViewingReportId) return;
 
-    const result = TorchAPI.reviewSessionReport(currentViewingReportId, currentAdminUser.name);
+    const result = await TorchAPI.reviewSessionReport(currentViewingReportId, currentAdminUser.name);
 
     if (result.success) {
         closeModal('view-report-modal');
         renderSessionReportsReview();
         showToast('Report marked as reviewed', 'success');
     } else {
-        showToast(result.errors[0], 'error');
+        showToast(result.errors ? result.errors[0] : 'Review failed', 'error');
     }
 }
 
@@ -1580,7 +1957,7 @@ function renderEngineerUpcomingSessions() {
     container.innerHTML = upcomingSessions.map(b => `
         <div class="session-item">
             <div>
-                <div class="member-name">${b.memberName}</div>
+                <div class="member-name">${escapeHTML(b.memberName)}</div>
                 <div class="session-time">${formatDate(b.date)} • ${formatTime(b.startTime)} - ${formatTime(b.endTime)}</div>
             </div>
             <span class="session-hours">${b.hours} hrs</span>
@@ -1608,8 +1985,8 @@ function renderPendingRequests() {
     container.innerHTML = pendingBookings.map(b => `
         <div class="request-card">
             <div class="request-header">
-                <h4>${b.memberName}</h4>
-                <span class="request-type">${b.type}</span>
+                <h4>${escapeHTML(b.memberName)}</h4>
+                <span class="request-type">${escapeHTML(b.type)}</span>
             </div>
             <div class="request-details">
                 <div class="detail"><span>📅</span> ${formatDate(b.date)}</div>
@@ -1618,8 +1995,8 @@ function renderPendingRequests() {
                 <div class="detail"><span>👥</span> ${b.guests} guests</div>
             </div>
             <div class="request-actions">
-                <button class="btn primary" onclick="acceptRequest(${b.id})">Accept</button>
-                <button class="btn secondary" onclick="declineRequest(${b.id})">Decline</button>
+                <button class="btn primary" onclick="acceptRequest('${escapeHTML(b.id)}')">Accept</button>
+                <button class="btn secondary" onclick="declineRequest('${escapeHTML(b.id)}')">Decline</button>
             </div>
         </div>
     `).join('');
@@ -1691,7 +2068,7 @@ function renderMyReports() {
             <div class="report-card pending">
                 <div class="report-header">
                     <div>
-                        <h4>${b.memberName}</h4>
+                        <h4>${escapeHTML(b.memberName)}</h4>
                         <span class="report-date">${formatDate(b.date)}</span>
                     </div>
                     <span class="status-badge pending">Needs Report</span>
@@ -1699,9 +2076,9 @@ function renderMyReports() {
                 <div class="report-meta">
                     <span>${formatTime(b.startTime)} - ${formatTime(b.endTime)}</span>
                     <span>${b.hours} hours</span>
-                    <span>${b.type}</span>
+                    <span>${escapeHTML(b.type)}</span>
                 </div>
-                <button class="btn primary" onclick="openReportForm(${b.id})">Submit Report</button>
+                <button class="btn primary" onclick="openReportForm('${escapeHTML(b.id)}')">Submit Report</button>
             </div>
         `).join('');
     } else {
@@ -1715,26 +2092,26 @@ function renderMyReports() {
         }
 
         container.innerHTML = myReports.map(r => `
-            <div class="report-card ${r.status}">
+            <div class="report-card ${escapeHTML(r.status)}">
                 <div class="report-header">
                     <div>
-                        <h4>${r.memberName}</h4>
+                        <h4>${escapeHTML(r.memberName)}</h4>
                         <span class="report-date">${formatDate(r.sessionDate)}</span>
                     </div>
-                    <span class="status-badge ${r.status}">${r.status}</span>
+                    <span class="status-badge ${escapeHTML(r.status)}">${escapeHTML(r.status)}</span>
                 </div>
                 <div class="report-meta">
                     <span>Hours: ${r.actualHours}</span>
                     <span>Quality: ${'★'.repeat(r.sessionQuality)}</span>
                 </div>
-                <button class="btn secondary small" onclick="viewReport(${r.id})">View</button>
+                <button class="btn secondary small" onclick="viewReport('${escapeHTML(r.id)}')">View</button>
             </div>
         `).join('');
     }
 }
 
 function openReportForm(bookingId) {
-    const booking = bookings.find(b => b.id === bookingId);
+    const booking = bookings.find(b => b.id == bookingId);
     if (!booking) return;
 
     document.getElementById('report-booking-id').value = bookingId;
@@ -1778,10 +2155,10 @@ function updateStars(value) {
     });
 }
 
-function submitSessionReport(event) {
+async function submitSessionReport(event) {
     event.preventDefault();
 
-    const bookingId = parseInt(document.getElementById('report-booking-id').value);
+    const bookingId = document.getElementById('report-booking-id').value;
     const engineerId = currentAdminUser.engineerId;
 
     const reportData = {
@@ -1806,24 +2183,931 @@ function submitSessionReport(event) {
     if (hours < 0) hours += 24;
     reportData.actualHours = Math.round(hours);
 
-    const createResult = TorchAPI.createSessionReport(reportData);
+    const createResult = await TorchAPI.createSessionReport(reportData);
 
     if (!createResult.success) {
         showToast(createResult.errors[0], 'error');
         return;
     }
 
-    const submitResult = TorchAPI.submitSessionReport(createResult.report.id);
+    const submitResult = await TorchAPI.submitSessionReport(createResult.report.id);
 
     if (submitResult.success) {
         closeModal('session-report-modal');
         renderMyReports();
         showToast('Report submitted successfully!', 'success');
     } else {
-        showToast(submitResult.errors[0], 'error');
+        showToast(submitResult.errors ? submitResult.errors[0] : 'Submit failed', 'error');
     }
 }
 
 function saveReportDraft() {
     showToast('Draft saved', 'info');
+}
+
+// ============================================
+// OPERATIONS TAB
+// ============================================
+
+// State
+let opsCalendarMonth = new Date().getMonth();
+let opsCalendarYear = new Date().getFullYear();
+let opsCalendarData = { bookings: [], tasks: [], estateRequests: [] };
+let opsSelectedDate = null;
+
+function initOperationsCalendar() {
+    opsCalendarMonth = new Date().getMonth();
+    opsCalendarYear = new Date().getFullYear();
+}
+
+// Sub-tab switching
+function switchOpsTab(tab) {
+    document.querySelectorAll('.ops-sub-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.ops-sub-tab[data-ops-tab="${tab}"]`).classList.add('active');
+
+    document.querySelectorAll('.ops-view').forEach(v => {
+        v.style.display = 'none';
+        v.classList.remove('active');
+    });
+
+    const view = document.getElementById(`ops-${tab}-view`);
+    view.style.display = 'block';
+    view.classList.add('active');
+
+    // Load data for the selected sub-tab
+    if (tab === 'calendar') loadOperationsCalendar();
+    else if (tab === 'pending') loadPendingBookings();
+    else if (tab === 'tasks') loadStudioTasks();
+    else if (tab === 'estate') loadEstateRequests();
+    else if (tab === 'nate') loadNateTasks();
+    else if (tab === 'vendors') loadVendors();
+    else if (tab === 'maintenance') loadMaintenanceLog();
+    else if (tab === 'linen') loadLinenStandards();
+}
+
+// ---- Operations Calendar ----
+
+function changeOpsMonth(delta) {
+    opsCalendarMonth += delta;
+    if (opsCalendarMonth > 11) { opsCalendarMonth = 0; opsCalendarYear++; }
+    if (opsCalendarMonth < 0) { opsCalendarMonth = 11; opsCalendarYear--; }
+    loadOperationsCalendar();
+}
+
+async function loadOperationsCalendar() {
+    const monthStr = `${opsCalendarYear}-${String(opsCalendarMonth + 1).padStart(2, '0')}`;
+    const monthLabel = new Date(opsCalendarYear, opsCalendarMonth).toLocaleString('default', { month: 'long', year: 'numeric' });
+    document.getElementById('ops-calendar-month').textContent = monthLabel;
+
+    // Try backend
+    if (typeof TorchBackend !== 'undefined' && TorchBackend.auth.isAuthenticated()) {
+        try {
+            opsCalendarData = await TorchBackend.admin.operationsCalendar(monthStr);
+        } catch (e) {
+            console.warn('[Ops] Calendar fetch failed:', e.message);
+            opsCalendarData = { bookings: [], tasks: [], estateRequests: [] };
+        }
+    } else {
+        opsCalendarData = { bookings: [], tasks: [], estateRequests: [] };
+    }
+
+    renderOpsCalendar();
+}
+
+function renderOpsCalendar() {
+    const container = document.getElementById('ops-calendar-days');
+    const firstDay = new Date(opsCalendarYear, opsCalendarMonth, 1).getDay();
+    const daysInMonth = new Date(opsCalendarYear, opsCalendarMonth + 1, 0).getDate();
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    // Build event map: date -> { bookings:[], tasks:[], estate:[] }
+    const eventMap = {};
+    (opsCalendarData.bookings || []).forEach(b => {
+        if (!eventMap[b.date]) eventMap[b.date] = { bookings: [], tasks: [], estate: [] };
+        eventMap[b.date].bookings.push(b);
+    });
+    (opsCalendarData.tasks || []).forEach(t => {
+        if (!eventMap[t.scheduled_date]) eventMap[t.scheduled_date] = { bookings: [], tasks: [], estate: [] };
+        eventMap[t.scheduled_date].tasks.push(t);
+    });
+    (opsCalendarData.estateRequests || []).forEach(er => {
+        try {
+            const dates = JSON.parse(er.preferred_dates || '[]');
+            dates.forEach(d => {
+                if (!eventMap[d]) eventMap[d] = { bookings: [], tasks: [], estate: [] };
+                eventMap[d].estate.push(er);
+            });
+        } catch {}
+    });
+
+    let html = '';
+
+    // Empty cells before first day
+    for (let i = 0; i < firstDay; i++) {
+        html += '<div class="ops-calendar-day other-month"></div>';
+    }
+
+    // Day cells
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${opsCalendarYear}-${String(opsCalendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const isToday = dateStr === todayStr;
+        const isSelected = dateStr === opsSelectedDate;
+        const events = eventMap[dateStr];
+
+        let classes = 'ops-calendar-day';
+        if (isToday) classes += ' today';
+        if (isSelected) classes += ' selected';
+
+        let dots = '';
+        if (events) {
+            if (events.bookings.length) dots += '<span class="event-dot booking"></span>';
+            events.tasks.forEach(t => {
+                dots += `<span class="event-dot ${t.type}"></span>`;
+            });
+            if (events.estate.length) dots += '<span class="event-dot estate"></span>';
+        }
+
+        html += `<div class="${classes}" onclick="selectOpsDay('${dateStr}')">
+            <div class="day-number">${day}</div>
+            <div class="day-dots">${dots}</div>
+        </div>`;
+    }
+
+    container.innerHTML = html;
+}
+
+function selectOpsDay(dateStr) {
+    opsSelectedDate = dateStr;
+    renderOpsCalendar();
+
+    const panel = document.getElementById('ops-day-detail');
+    const title = document.getElementById('ops-day-detail-title');
+    const content = document.getElementById('ops-day-detail-content');
+
+    const dayEvents = [];
+
+    (opsCalendarData.bookings || []).filter(b => b.date === dateStr).forEach(b => {
+        dayEvents.push({
+            type: 'booking',
+            time: b.start_time,
+            label: `${b.member_name || 'Booking'} — ${b.type} (${b.status})`,
+            room: b.room || ''
+        });
+    });
+
+    (opsCalendarData.tasks || []).filter(t => t.scheduled_date === dateStr).forEach(t => {
+        dayEvents.push({
+            type: t.type,
+            time: t.scheduled_time,
+            label: `${t.title} (${t.status})`,
+            room: t.room
+        });
+    });
+
+    (opsCalendarData.estateRequests || []).forEach(er => {
+        try {
+            const dates = JSON.parse(er.preferred_dates || '[]');
+            if (dates.includes(dateStr)) {
+                dayEvents.push({
+                    type: 'estate',
+                    time: '',
+                    label: `Estate: ${er.name} — ${er.event_details || ''}`.slice(0, 80),
+                    room: 'estate'
+                });
+            }
+        } catch {}
+    });
+
+    dayEvents.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+    const formatted = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    title.textContent = formatted;
+
+    if (dayEvents.length === 0) {
+        content.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px;">No events scheduled</p>';
+    } else {
+        content.innerHTML = dayEvents.map(e => `
+            <div class="day-detail-item">
+                <span class="event-dot ${escapeHTML(e.type)}"></span>
+                <span class="detail-time">${e.time ? formatTime(e.time) : ''}</span>
+                <span class="detail-info">${escapeHTML(e.label)}</span>
+                ${e.room ? `<span class="room-badge">${escapeHTML(e.room)}</span>` : ''}
+            </div>
+        `).join('');
+    }
+
+    panel.style.display = 'block';
+}
+
+// ---- Pending Bookings ----
+
+async function loadPendingBookings() {
+    const filter = document.getElementById('ops-booking-status-filter').value;
+    const container = document.getElementById('ops-pending-list');
+
+    let bookingsList = [];
+    if (typeof TorchBackend !== 'undefined' && TorchBackend.auth.isAuthenticated()) {
+        try {
+            const params = {};
+            if (filter !== 'all') params.status = filter;
+            bookingsList = await TorchBackend.bookings.list(params);
+        } catch (e) {
+            console.warn('[Ops] Bookings fetch failed:', e.message);
+        }
+    }
+
+    if (bookingsList.length === 0) {
+        container.innerHTML = '<div class="ops-empty"><h4>No bookings found</h4><p>Bookings will appear here when members submit them.</p></div>';
+        return;
+    }
+
+    container.innerHTML = bookingsList.map(b => `
+        <div class="booking-card">
+            <div class="card-header">
+                <h4>${escapeHTML(b.member_name) || 'Unknown Member'}</h4>
+                <span class="status-badge ${b.status}">${b.status}</span>
+            </div>
+            <div class="card-meta">
+                <span>${formatDate(b.date)}</span>
+                <span>${formatTime(b.start_time)} - ${formatTime(b.end_time)}</span>
+                <span>${b.hours}h</span>
+            </div>
+            <div class="card-meta">
+                <span>${escapeHTML((b.type || '').charAt(0).toUpperCase() + (b.type || '').slice(1))}</span>
+                ${b.room ? `<span class="room-badge">${escapeHTML(b.room)}</span>` : ''}
+            </div>
+            ${b.status === 'pending' ? `
+                <div class="card-actions">
+                    <button class="btn primary" onclick="approveBooking('${escapeHTML(b.id)}')">Approve</button>
+                    <button class="btn secondary" onclick="openDeclineBooking('${escapeHTML(b.id)}')">Decline</button>
+                </div>
+            ` : ''}
+            ${b.decline_reason ? `<p style="font-size: 12px; color: var(--danger); margin-top: 8px;">Reason: ${escapeHTML(b.decline_reason)}</p>` : ''}
+        </div>
+    `).join('');
+}
+
+async function approveBooking(bookingId) {
+    try {
+        await TorchBackend.bookings.updateStatus(bookingId, 'confirmed');
+        showToast('Booking approved', 'success');
+        loadPendingBookings();
+        loadOperationsCalendar();
+    } catch (e) {
+        showToast(e.message || 'Failed to approve booking', 'error');
+    }
+}
+
+function openDeclineBooking(bookingId) {
+    document.getElementById('decline-booking-id').value = bookingId;
+    document.getElementById('decline-reason').value = '';
+    openModal('decline-booking-modal');
+}
+
+async function confirmDeclineBooking(event) {
+    event.preventDefault();
+    const bookingId = document.getElementById('decline-booking-id').value;
+    const reason = document.getElementById('decline-reason').value;
+
+    try {
+        await TorchBackend.bookings.updateStatus(bookingId, 'declined', reason);
+        closeModal('decline-booking-modal');
+        showToast('Booking declined', 'info');
+        loadPendingBookings();
+        loadOperationsCalendar();
+    } catch (e) {
+        showToast(e.message || 'Failed to decline booking', 'error');
+    }
+}
+
+// ---- Studio Tasks ----
+
+async function loadStudioTasks() {
+    const container = document.getElementById('ops-tasks-list');
+    const roomFilter = document.getElementById('ops-task-room-filter').value;
+    const typeFilter = document.getElementById('ops-task-type-filter').value;
+    const statusFilter = document.getElementById('ops-task-status-filter').value;
+
+    let tasksList = [];
+    if (typeof TorchBackend !== 'undefined' && TorchBackend.auth.isAuthenticated()) {
+        try {
+            const params = {};
+            if (roomFilter !== 'all') params.room = roomFilter;
+            if (typeFilter !== 'all') params.type = typeFilter;
+            if (statusFilter !== 'all') params.status = statusFilter;
+            tasksList = await TorchBackend.studioTasks.list(params);
+        } catch (e) {
+            console.warn('[Ops] Tasks fetch failed:', e.message);
+        }
+    }
+
+    if (tasksList.length === 0) {
+        container.innerHTML = '<div class="ops-empty"><h4>No tasks found</h4><p>Add studio tasks to track cleaning, maintenance, and repairs.</p></div>';
+        return;
+    }
+
+    container.innerHTML = tasksList.map(t => `
+        <div class="task-card">
+            <div class="card-header">
+                <h4>${escapeHTML(t.title)}</h4>
+                <span class="status-badge ${t.status}">${t.status.replace('_', ' ')}</span>
+            </div>
+            <div class="card-meta">
+                <span class="type-badge ${t.type}">${t.type}</span>
+                <span class="room-badge">${t.room}</span>
+                <span>${formatDate(t.scheduled_date)}</span>
+                <span>${formatTime(t.scheduled_time)}</span>
+            </div>
+            ${t.assigned_to ? `<div class="card-meta"><span>Assigned: ${escapeHTML(t.assigned_to)}</span></div>` : ''}
+            ${t.description ? `<p style="font-size: 12px; color: var(--text-secondary); margin-top: 6px;">${escapeHTML(t.description)}</p>` : ''}
+            <div class="card-actions">
+                ${t.status === 'pending' ? `<button class="btn primary" onclick="updateTaskStatus('${t.id}', 'in_progress')">Start</button>` : ''}
+                ${t.status === 'in_progress' ? `<button class="btn primary" onclick="updateTaskStatus('${t.id}', 'completed')">Complete</button>` : ''}
+                ${t.status !== 'cancelled' && t.status !== 'completed' ? `<button class="btn secondary" onclick="updateTaskStatus('${t.id}', 'cancelled')">Cancel</button>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+async function addStudioTask(event) {
+    event.preventDefault();
+
+    const data = {
+        title: document.getElementById('task-title').value,
+        type: document.getElementById('task-type').value,
+        room: document.getElementById('task-room').value,
+        scheduledDate: document.getElementById('task-date').value,
+        scheduledTime: document.getElementById('task-time').value || '09:00',
+        assignedTo: document.getElementById('task-assigned').value || null,
+        description: document.getElementById('task-description').value || null
+    };
+
+    try {
+        await TorchBackend.studioTasks.create(data);
+        closeModal('add-task-modal');
+        showToast('Task created', 'success');
+        loadStudioTasks();
+        loadOperationsCalendar();
+        // Reset form
+        document.getElementById('task-title').value = '';
+        document.getElementById('task-description').value = '';
+        document.getElementById('task-assigned').value = '';
+    } catch (e) {
+        showToast(e.message || 'Failed to create task', 'error');
+    }
+}
+
+async function updateTaskStatus(taskId, status) {
+    try {
+        await TorchBackend.studioTasks.update(taskId, { status });
+        showToast(`Task ${status.replace('_', ' ')}`, 'success');
+        loadStudioTasks();
+        loadOperationsCalendar();
+    } catch (e) {
+        showToast(e.message || 'Failed to update task', 'error');
+    }
+}
+
+// ---- Estate Requests ----
+
+async function loadEstateRequests() {
+    const container = document.getElementById('ops-estate-list');
+    const statusFilter = document.getElementById('ops-estate-status-filter').value;
+
+    let requestsList = [];
+    if (typeof TorchBackend !== 'undefined' && TorchBackend.auth.isAuthenticated()) {
+        try {
+            const params = {};
+            if (statusFilter !== 'all') params.status = statusFilter;
+            requestsList = await TorchBackend.estateRequests.list(params);
+        } catch (e) {
+            console.warn('[Ops] Estate requests fetch failed:', e.message);
+        }
+    }
+
+    if (requestsList.length === 0) {
+        container.innerHTML = '<div class="ops-empty"><h4>No estate requests</h4><p>Estate access requests will appear here.</p></div>';
+        return;
+    }
+
+    container.innerHTML = requestsList.map(er => {
+        let dates = '';
+        try { dates = JSON.parse(er.preferred_dates || '[]').join(', '); } catch { dates = er.preferred_dates || ''; }
+
+        return `
+            <div class="estate-card">
+                <div class="card-header">
+                    <h4>${escapeHTML(er.name)}</h4>
+                    <span class="status-badge ${escapeHTML(er.status)}">${escapeHTML(er.status)}</span>
+                </div>
+                <div class="card-meta">
+                    <span>${escapeHTML(er.email)}</span>
+                    ${er.phone ? `<span>${escapeHTML(er.phone)}</span>` : ''}
+                </div>
+                ${dates ? `<div class="card-meta"><span>Dates: ${escapeHTML(dates)}</span></div>` : ''}
+                ${er.event_details ? `<p style="font-size: 12px; color: var(--text-secondary); margin-top: 6px;">${escapeHTML(er.event_details.slice(0, 100))}${er.event_details.length > 100 ? '...' : ''}</p>` : ''}
+                <div class="card-actions">
+                    <button class="btn primary" onclick="openEstateDetail('${escapeHTML(er.id)}')">View Details</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function openEstateDetail(requestId) {
+    const requests = opsCalendarData.estateRequests || [];
+    // Fetch from list if not in calendar data
+    let er = requests.find(r => r.id === requestId);
+
+    // If not found in calendar data, find from DOM or refetch
+    if (!er) {
+        // We'll need to fetch it - for now use what we have from the list render
+        // The list was loaded from the API, so we re-fetch
+        (async () => {
+            try {
+                const all = await TorchBackend.estateRequests.list();
+                er = all.find(r => r.id === requestId);
+                if (er) populateEstateDetail(er);
+            } catch (e) {
+                showToast('Could not load request details', 'error');
+            }
+        })();
+        return;
+    }
+
+    populateEstateDetail(er);
+}
+
+function populateEstateDetail(er) {
+    document.getElementById('estate-detail-id').value = er.id;
+    document.getElementById('estate-detail-name').textContent = er.name;
+    document.getElementById('estate-detail-email').textContent = er.email;
+    document.getElementById('estate-detail-phone').textContent = er.phone || 'N/A';
+
+    let dates = '';
+    try { dates = JSON.parse(er.preferred_dates || '[]').join(', '); } catch { dates = er.preferred_dates || ''; }
+    document.getElementById('estate-detail-dates').textContent = dates || 'N/A';
+    document.getElementById('estate-detail-event').textContent = er.event_details || 'N/A';
+    document.getElementById('estate-detail-submitted').textContent = er.created_at ? new Date(er.created_at).toLocaleDateString() : 'N/A';
+    document.getElementById('estate-detail-status').value = er.status;
+    document.getElementById('estate-detail-notes').value = er.admin_notes || '';
+
+    openModal('estate-detail-modal');
+}
+
+async function saveEstateUpdate() {
+    const id = document.getElementById('estate-detail-id').value;
+    const status = document.getElementById('estate-detail-status').value;
+    const adminNotes = document.getElementById('estate-detail-notes').value;
+
+    try {
+        await TorchBackend.estateRequests.update(id, { status, adminNotes });
+        closeModal('estate-detail-modal');
+        showToast('Estate request updated', 'success');
+        loadEstateRequests();
+        loadOperationsCalendar();
+    } catch (e) {
+        showToast(e.message || 'Failed to update request', 'error');
+    }
+}
+
+// ============================================
+// OPERATIONS HUB — SEED DATA INIT
+// ============================================
+
+function initOpsHubData() {
+    if (vendors.length === 0 && typeof SEED_VENDORS !== 'undefined') {
+        vendors = JSON.parse(JSON.stringify(SEED_VENDORS));
+        TorchStorage.saveVendors();
+        console.log('[OpsHub] Seeded vendor directory');
+    }
+    if (maintenanceLog.length === 0 && typeof SEED_MAINTENANCE !== 'undefined') {
+        maintenanceLog = JSON.parse(JSON.stringify(SEED_MAINTENANCE));
+        TorchStorage.saveMaintenanceLog();
+        console.log('[OpsHub] Seeded maintenance log');
+    }
+}
+
+// Run seed on load
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(initOpsHubData, 500);
+});
+
+// ============================================
+// NATE TASK BOARD
+// ============================================
+
+function loadNateTasks() {
+    const container = document.getElementById('nate-tasks-list');
+    const categoryFilter = document.getElementById('nate-task-category-filter').value;
+    const priorityFilter = document.getElementById('nate-task-priority-filter').value;
+    const statusFilter = document.getElementById('nate-task-status-filter').value;
+
+    let filtered = [...nateTasks];
+
+    if (categoryFilter !== 'all') filtered = filtered.filter(t => t.category === categoryFilter);
+    if (priorityFilter !== 'all') filtered = filtered.filter(t => t.priority === priorityFilter);
+    if (statusFilter !== 'all') filtered = filtered.filter(t => t.status === statusFilter);
+
+    // Sort: pending first, then by due date
+    filtered.sort((a, b) => {
+        const statusOrder = { pending: 0, in_progress: 1, completed: 2 };
+        if (statusOrder[a.status] !== statusOrder[b.status]) return statusOrder[a.status] - statusOrder[b.status];
+        return new Date(a.dueDate) - new Date(b.dueDate);
+    });
+
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="ops-empty"><h4>No tasks found</h4><p>Add tasks for Nate to track pre-arrival, day-of, and post-session work.</p></div>';
+        return;
+    }
+
+    container.innerHTML = filtered.map(t => `
+        <div class="task-card nate-card">
+            <div class="card-header">
+                <h4>${escapeHTML(t.title)}</h4>
+                <span class="status-badge ${t.status}">${t.status.replace('_', ' ')}</span>
+            </div>
+            <div class="card-meta">
+                <span class="type-badge ${t.category}">${t.category.replace('-', ' ')}</span>
+                <span class="priority-badge priority-${t.priority}">${t.priority}</span>
+                <span>Due: ${formatDate(t.dueDate)}</span>
+            </div>
+            ${t.linkedBooking ? `<div class="card-meta"><span>Booking: ${escapeHTML(t.linkedBooking)}</span></div>` : ''}
+            ${t.notes ? `<p style="font-size: 12px; color: var(--text-secondary); margin-top: 6px;">${escapeHTML(t.notes)}</p>` : ''}
+            <div class="card-actions">
+                ${t.status === 'pending' ? `<button class="btn primary" onclick="updateNateTaskStatus('${t.id}', 'in_progress')">Start</button>` : ''}
+                ${t.status === 'in_progress' ? `<button class="btn primary" onclick="updateNateTaskStatus('${t.id}', 'completed')">Complete</button>` : ''}
+                ${t.status !== 'completed' ? `<button class="btn secondary" onclick="deleteNateTask('${t.id}')">Delete</button>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+function addNateTask(event) {
+    event.preventDefault();
+
+    const task = {
+        id: 'nate-' + Date.now(),
+        title: document.getElementById('nate-task-title').value,
+        category: document.getElementById('nate-task-category').value,
+        priority: document.getElementById('nate-task-priority').value,
+        dueDate: document.getElementById('nate-task-due').value,
+        linkedBooking: document.getElementById('nate-task-booking').value || null,
+        notes: document.getElementById('nate-task-notes').value || null,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+
+    nateTasks.push(task);
+    TorchStorage.saveNateTasks();
+    closeModal('add-nate-task-modal');
+    showToast('Nate task created', 'success');
+    loadNateTasks();
+
+    // Reset form
+    document.getElementById('nate-task-title').value = '';
+    document.getElementById('nate-task-booking').value = '';
+    document.getElementById('nate-task-notes').value = '';
+}
+
+function updateNateTaskStatus(taskId, status) {
+    const task = nateTasks.find(t => t.id === taskId);
+    if (task) {
+        task.status = status;
+        task.updatedAt = new Date().toISOString();
+        if (status === 'completed') task.completedAt = new Date().toISOString();
+        TorchStorage.saveNateTasks();
+        showToast(`Task ${status.replace('_', ' ')}`, 'success');
+        loadNateTasks();
+    }
+}
+
+function deleteNateTask(taskId) {
+    nateTasks = nateTasks.filter(t => t.id !== taskId);
+    TorchStorage.saveNateTasks();
+    showToast('Task deleted', 'success');
+    loadNateTasks();
+}
+
+// ============================================
+// VENDOR DIRECTORY
+// ============================================
+
+function loadVendors() {
+    const container = document.getElementById('vendors-list');
+    const categoryFilter = document.getElementById('vendor-category-filter').value;
+    const ratingFilter = document.getElementById('vendor-rating-filter').value;
+
+    let filtered = [...vendors];
+
+    if (categoryFilter !== 'all') filtered = filtered.filter(v => v.category === categoryFilter);
+    if (ratingFilter !== 'all') filtered = filtered.filter(v => v.rating >= parseInt(ratingFilter));
+
+    // Sort by rating desc, then name
+    filtered.sort((a, b) => b.rating - a.rating || a.name.localeCompare(b.name));
+
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="ops-empty"><h4>No vendors found</h4><p>Add vendors to build your directory of cleaning, catering, maintenance, and equipment contacts.</p></div>';
+        return;
+    }
+
+    container.innerHTML = filtered.map(v => {
+        const stars = '★'.repeat(v.rating) + '☆'.repeat(5 - v.rating);
+        return `
+        <div class="vendor-card">
+            <div class="card-header">
+                <h4>${escapeHTML(v.name)}</h4>
+                <span class="type-badge ${v.category}">${v.category}</span>
+            </div>
+            <div class="vendor-rating">${stars}</div>
+            <div class="card-meta">
+                ${v.contactName ? `<span>${escapeHTML(v.contactName)}</span>` : ''}
+                ${v.phone ? `<span>${escapeHTML(v.phone)}</span>` : ''}
+                ${v.rate ? `<span>${escapeHTML(v.rate)}</span>` : ''}
+            </div>
+            ${v.email ? `<div class="card-meta"><span>${escapeHTML(v.email)}</span></div>` : ''}
+            ${v.notes ? `<p style="font-size: 12px; color: var(--text-secondary); margin-top: 6px;">${escapeHTML(v.notes)}</p>` : ''}
+            <div class="card-actions">
+                <button class="btn secondary" onclick="deleteVendor('${v.id}')">Remove</button>
+            </div>
+        </div>
+    `}).join('');
+}
+
+function addVendor(event) {
+    event.preventDefault();
+
+    const vendor = {
+        id: 'vendor-' + Date.now(),
+        name: document.getElementById('vendor-name').value,
+        category: document.getElementById('vendor-category').value,
+        contactName: document.getElementById('vendor-contact').value || '',
+        phone: document.getElementById('vendor-phone').value || '',
+        email: document.getElementById('vendor-email').value || '',
+        rate: document.getElementById('vendor-rate').value || '',
+        rating: parseInt(document.getElementById('vendor-rating').value),
+        notes: document.getElementById('vendor-notes').value || '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+
+    vendors.push(vendor);
+    TorchStorage.saveVendors();
+    closeModal('add-vendor-modal');
+    showToast('Vendor added', 'success');
+    loadVendors();
+
+    // Reset form
+    document.getElementById('vendor-name').value = '';
+    document.getElementById('vendor-contact').value = '';
+    document.getElementById('vendor-phone').value = '';
+    document.getElementById('vendor-email').value = '';
+    document.getElementById('vendor-rate').value = '';
+    document.getElementById('vendor-notes').value = '';
+}
+
+function deleteVendor(vendorId) {
+    vendors = vendors.filter(v => v.id !== vendorId);
+    TorchStorage.saveVendors();
+    showToast('Vendor removed', 'success');
+    loadVendors();
+}
+
+// ============================================
+// PROPERTY MAINTENANCE LOG
+// ============================================
+
+function loadMaintenanceLog() {
+    const container = document.getElementById('maintenance-list');
+    const priorityFilter = document.getElementById('maint-priority-filter').value;
+    const statusFilter = document.getElementById('maint-status-filter').value;
+    const areaFilter = document.getElementById('maint-area-filter').value;
+
+    let filtered = [...maintenanceLog];
+
+    if (priorityFilter !== 'all') filtered = filtered.filter(m => m.priority === priorityFilter);
+    if (statusFilter !== 'all') filtered = filtered.filter(m => m.status === statusFilter);
+    if (areaFilter !== 'all') filtered = filtered.filter(m => m.area === areaFilter);
+
+    // Sort: open first, then by priority, then by date
+    const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+    const statusOrder = { open: 0, in_progress: 1, scheduled: 2, resolved: 3 };
+    filtered.sort((a, b) => {
+        if (statusOrder[a.status] !== statusOrder[b.status]) return statusOrder[a.status] - statusOrder[b.status];
+        if (priorityOrder[a.priority] !== priorityOrder[b.priority]) return priorityOrder[a.priority] - priorityOrder[b.priority];
+        return new Date(b.reportedDate) - new Date(a.reportedDate);
+    });
+
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="ops-empty"><h4>No maintenance items</h4><p>Log maintenance items as they arise to track issues and resolution.</p></div>';
+        return;
+    }
+
+    container.innerHTML = filtered.map(m => `
+        <div class="maint-card">
+            <div class="card-header">
+                <h4>${escapeHTML(m.title)}</h4>
+                <span class="status-badge ${m.status}">${m.status.replace('_', ' ')}</span>
+            </div>
+            <div class="card-meta">
+                <span class="priority-badge priority-${m.priority}">${m.priority}</span>
+                <span class="type-badge">${m.area.replace('-', ' ')}</span>
+                <span>Reported: ${formatDate(m.reportedDate)}</span>
+            </div>
+            ${m.assignedTo ? `<div class="card-meta"><span>Assigned: ${escapeHTML(m.assignedTo)}</span></div>` : ''}
+            ${m.nextServiceDate ? `<div class="card-meta"><span style="color: var(--primary);">Next service: ${formatDate(m.nextServiceDate)}</span></div>` : ''}
+            ${m.estimatedCost ? `<div class="card-meta"><span>Est. cost: ${escapeHTML(m.estimatedCost)}</span></div>` : ''}
+            ${m.description ? `<p style="font-size: 12px; color: var(--text-secondary); margin-top: 6px;">${escapeHTML(m.description)}</p>` : ''}
+            <div class="card-actions">
+                ${m.status === 'open' ? `<button class="btn primary" onclick="updateMaintenanceStatus('${m.id}', 'in_progress')">Start</button>` : ''}
+                ${m.status === 'in_progress' ? `<button class="btn primary" onclick="updateMaintenanceStatus('${m.id}', 'resolved')">Resolve</button>` : ''}
+                ${m.status === 'open' ? `<button class="btn secondary" onclick="updateMaintenanceStatus('${m.id}', 'scheduled')">Schedule</button>` : ''}
+                ${m.status === 'scheduled' ? `<button class="btn primary" onclick="updateMaintenanceStatus('${m.id}', 'resolved')">Resolve</button>` : ''}
+                <button class="btn secondary" onclick="deleteMaintenanceItem('${m.id}')">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addMaintenanceItem(event) {
+    event.preventDefault();
+
+    const item = {
+        id: 'maint-' + Date.now(),
+        title: document.getElementById('maint-title').value,
+        priority: document.getElementById('maint-priority').value,
+        status: 'open',
+        area: document.getElementById('maint-area').value,
+        assignedTo: document.getElementById('maint-assigned').value || '',
+        reportedDate: document.getElementById('maint-reported').value,
+        nextServiceDate: document.getElementById('maint-next-service').value || '',
+        estimatedCost: document.getElementById('maint-cost').value || '',
+        description: document.getElementById('maint-description').value || '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+
+    maintenanceLog.push(item);
+    TorchStorage.saveMaintenanceLog();
+    closeModal('add-maintenance-modal');
+    showToast('Maintenance item logged', 'success');
+    loadMaintenanceLog();
+
+    // Reset form
+    document.getElementById('maint-title').value = '';
+    document.getElementById('maint-assigned').value = '';
+    document.getElementById('maint-cost').value = '';
+    document.getElementById('maint-description').value = '';
+    document.getElementById('maint-next-service').value = '';
+}
+
+function updateMaintenanceStatus(itemId, status) {
+    const item = maintenanceLog.find(m => m.id === itemId);
+    if (item) {
+        item.status = status;
+        item.updatedAt = new Date().toISOString();
+        if (status === 'resolved') item.resolvedDate = new Date().toISOString().split('T')[0];
+        TorchStorage.saveMaintenanceLog();
+        showToast(`Item ${status.replace('_', ' ')}`, 'success');
+        loadMaintenanceLog();
+    }
+}
+
+function deleteMaintenanceItem(itemId) {
+    maintenanceLog = maintenanceLog.filter(m => m.id !== itemId);
+    TorchStorage.saveMaintenanceLog();
+    showToast('Maintenance item deleted', 'success');
+    loadMaintenanceLog();
+}
+
+// ============================================
+// LINEN & SUPPLY STANDARDS
+// ============================================
+
+function loadLinenStandards() {
+    const container = document.getElementById('linen-list');
+    const summaryBar = document.getElementById('linen-summary');
+    const categoryFilter = document.getElementById('linen-category-filter').value;
+    const statusFilter = document.getElementById('linen-status-filter').value;
+
+    let filtered = [...linenStandards];
+
+    if (categoryFilter !== 'all') filtered = filtered.filter(l => l.category === categoryFilter);
+    if (statusFilter !== 'all') filtered = filtered.filter(l => l.status === statusFilter);
+
+    // Sort: fails first, then reorder, then pass
+    const statusOrder = { fail: 0, reorder: 1, pass: 2 };
+    filtered.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
+
+    // Summary counts
+    const totalCount = linenStandards.length;
+    const passCount = linenStandards.filter(l => l.status === 'pass').length;
+    const failCount = linenStandards.filter(l => l.status === 'fail').length;
+    const reorderCount = linenStandards.filter(l => l.status === 'reorder').length;
+
+    summaryBar.innerHTML = totalCount > 0 ? `
+        <div class="linen-stat">
+            <span class="linen-stat-num">${totalCount}</span>
+            <span class="linen-stat-label">Total Items</span>
+        </div>
+        <div class="linen-stat pass">
+            <span class="linen-stat-num">${passCount}</span>
+            <span class="linen-stat-label">Pass</span>
+        </div>
+        <div class="linen-stat fail">
+            <span class="linen-stat-num">${failCount}</span>
+            <span class="linen-stat-label">Fail</span>
+        </div>
+        <div class="linen-stat reorder">
+            <span class="linen-stat-num">${reorderCount}</span>
+            <span class="linen-stat-label">Reorder</span>
+        </div>
+    ` : '';
+
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="ops-empty"><h4>No inspection records</h4><p>Nate logs inspection results here. Flagged items surface to Joi\'s priority view.</p></div>';
+        return;
+    }
+
+    container.innerHTML = filtered.map(l => {
+        const stockLevel = l.minimum > 0 ? Math.round((l.quantity / l.minimum) * 100) : 100;
+        const stockClass = stockLevel >= 100 ? 'stock-good' : stockLevel >= 50 ? 'stock-warning' : 'stock-critical';
+
+        return `
+        <div class="linen-card ${l.status === 'fail' ? 'flagged' : ''}">
+            <div class="card-header">
+                <h4>${escapeHTML(l.item)}</h4>
+                <span class="status-badge ${l.status}">${l.status}</span>
+            </div>
+            <div class="card-meta">
+                <span class="type-badge">${l.category.replace('-', ' ')}</span>
+                <span>Inspected: ${formatDate(l.inspectedAt)}</span>
+                ${l.inspectedBy ? `<span>By: ${escapeHTML(l.inspectedBy)}</span>` : ''}
+            </div>
+            ${l.minimum > 0 ? `
+            <div class="stock-bar-container">
+                <div class="stock-bar">
+                    <div class="stock-bar-fill ${stockClass}" style="width: ${Math.min(stockLevel, 100)}%"></div>
+                </div>
+                <span class="stock-label">${l.quantity} / ${l.minimum} on hand</span>
+            </div>
+            ` : ''}
+            ${l.notes ? `<p style="font-size: 12px; color: var(--text-secondary); margin-top: 6px;">${escapeHTML(l.notes)}</p>` : ''}
+            <div class="card-actions">
+                ${l.status === 'fail' ? `<button class="btn primary" onclick="updateLinenStatus('${l.id}', 'pass')">Mark Resolved</button>` : ''}
+                ${l.status === 'reorder' ? `<button class="btn primary" onclick="updateLinenStatus('${l.id}', 'pass')">Restocked</button>` : ''}
+                <button class="btn secondary" onclick="deleteLinenRecord('${l.id}')">Delete</button>
+            </div>
+        </div>
+    `}).join('');
+}
+
+function addLinenInspection(event) {
+    event.preventDefault();
+
+    const record = {
+        id: 'linen-' + Date.now(),
+        item: document.getElementById('linen-item').value,
+        category: document.getElementById('linen-category').value,
+        status: document.getElementById('linen-status').value,
+        quantity: parseInt(document.getElementById('linen-quantity').value) || 0,
+        minimum: parseInt(document.getElementById('linen-minimum').value) || 0,
+        inspectedBy: document.getElementById('linen-inspector').value || 'Nate',
+        notes: document.getElementById('linen-notes').value || '',
+        inspectedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+
+    linenStandards.push(record);
+    TorchStorage.saveLinenStandards();
+    closeModal('add-linen-modal');
+    showToast(`Inspection logged — ${record.status === 'fail' ? 'FLAGGED for Joi' : record.status}`, record.status === 'fail' ? 'error' : 'success');
+    loadLinenStandards();
+
+    // Reset form
+    document.getElementById('linen-item').value = '';
+    document.getElementById('linen-quantity').value = '';
+    document.getElementById('linen-minimum').value = '';
+    document.getElementById('linen-notes').value = '';
+}
+
+function updateLinenStatus(recordId, status) {
+    const record = linenStandards.find(l => l.id === recordId);
+    if (record) {
+        record.status = status;
+        record.updatedAt = new Date().toISOString();
+        TorchStorage.saveLinenStandards();
+        showToast(`Item marked as ${status}`, 'success');
+        loadLinenStandards();
+    }
+}
+
+function deleteLinenRecord(recordId) {
+    linenStandards = linenStandards.filter(l => l.id !== recordId);
+    TorchStorage.saveLinenStandards();
+    showToast('Record deleted', 'success');
+    loadLinenStandards();
 }
