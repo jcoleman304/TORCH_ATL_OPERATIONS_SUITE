@@ -252,6 +252,22 @@ function switchTab(tabId) {
     // Load operations data when switching to operations tab
     if (tabId === 'operations') {
         loadOperationsCalendar();
+    } else if (tabId === 'clients') {
+        renderClientsTable();
+    } else if (tabId === 'inquiries') {
+        renderInquiryPipeline();
+    } else if (tabId === 'member-portal') {
+        renderTdpMembers();
+    } else if (tabId === 'invoices') {
+        loadInvoices();
+    } else if (tabId === 'equipment') {
+        loadEquipment();
+    } else if (tabId === 'pipeline') {
+        loadCampOutreach();
+    } else if (tabId === 'milestones') {
+        loadMilestones();
+    } else if (tabId === 'dashboard') {
+        updateDashboardV2();
     }
 }
 
@@ -285,34 +301,39 @@ async function updateDashboard() {
 
 function renderDashboardFromBackend(dashboard) {
     const m = dashboard.metrics;
-    document.getElementById('total-members').textContent = m.activeMembers;
-    document.getElementById('total-mrr').textContent = '$' + m.mrr.toLocaleString();
-    document.getElementById('weekly-sessions').textContent = m.monthlyBookings;
+    const el = (id) => document.getElementById(id);
+    if (el('total-members')) el('total-members').textContent = m.activeMembers;
+    if (el('total-mrr')) el('total-mrr').textContent = '$' + m.mrr.toLocaleString();
+    if (el('weekly-sessions')) el('weekly-sessions').textContent = m.monthlyBookings;
 
     const maxMonthlyHours = 30 * 16;
     const utilization = maxMonthlyHours > 0 ? Math.round((m.monthlyHours / maxMonthlyHours) * 100) : 0;
-    document.getElementById('utilization').textContent = utilization + '%';
+    if (el('utilization')) el('utilization').textContent = utilization + '%';
 
     // Tier bars from backend breakdown
     const tierCounts = { Residency: 0, Member: 0, Session: 0 };
     (dashboard.tierBreakdown || []).forEach(t => { tierCounts[t.tier] = parseInt(t.count); });
 
-    document.getElementById('bar-residency').style.width = (tierCounts.Residency / TIERS.Residency.cap * 100) + '%';
-    document.getElementById('bar-member').style.width = (tierCounts.Member / TIERS.Member.cap * 100) + '%';
-    document.getElementById('bar-session').style.width = (tierCounts.Session / TIERS.Session.cap * 100) + '%';
+    if (el('bar-residency')) el('bar-residency').style.width = (tierCounts.Residency / TIERS.Residency.cap * 100) + '%';
+    if (el('bar-member')) el('bar-member').style.width = (tierCounts.Member / TIERS.Member.cap * 100) + '%';
+    if (el('bar-session')) el('bar-session').style.width = (tierCounts.Session / TIERS.Session.cap * 100) + '%';
 
-    document.getElementById('count-residency').textContent = `${tierCounts.Residency}/${TIERS.Residency.cap}`;
-    document.getElementById('count-member').textContent = `${tierCounts.Member}/${TIERS.Member.cap}`;
-    document.getElementById('count-session').textContent = `${tierCounts.Session}/${TIERS.Session.cap}`;
+    if (el('count-residency')) el('count-residency').textContent = `${tierCounts.Residency}/${TIERS.Residency.cap}`;
+    if (el('count-member')) el('count-member').textContent = `${tierCounts.Member}/${TIERS.Member.cap}`;
+    if (el('count-session')) el('count-session').textContent = `${tierCounts.Session}/${TIERS.Session.cap}`;
 
     // Upcoming sessions from local cache (already refreshed)
     renderUpcomingSessions();
 
     // Activity feed from backend
     renderActivityFeedFromBackend(dashboard.recentActivity || []);
+
+    // Also update new dashboard
+    updateDashboardV2();
 }
 
 function renderDashboardFromLocal() {
+    const el = (id) => document.getElementById(id);
     const activeMembers = members.filter(m => m.status === 'Active');
     const totalMRR = activeMembers.reduce((sum, m) => sum + m.monthlyRate, 0);
     const weeklyBookings = bookings.filter(b => {
@@ -322,28 +343,31 @@ function renderDashboardFromLocal() {
         return bookingDate >= today && bookingDate <= weekFromNow;
     });
 
-    document.getElementById('total-members').textContent = activeMembers.length;
-    document.getElementById('total-mrr').textContent = '$' + totalMRR.toLocaleString();
-    document.getElementById('weekly-sessions').textContent = weeklyBookings.length;
+    if (el('total-members')) el('total-members').textContent = activeMembers.length;
+    if (el('total-mrr')) el('total-mrr').textContent = '$' + totalMRR.toLocaleString();
+    if (el('weekly-sessions')) el('weekly-sessions').textContent = weeklyBookings.length;
 
     const totalHoursBooked = bookings.reduce((sum, b) => sum + b.hours, 0);
     const maxMonthlyHours = 30 * 16;
     const utilization = Math.round((totalHoursBooked / maxMonthlyHours) * 100);
-    document.getElementById('utilization').textContent = utilization + '%';
+    if (el('utilization')) el('utilization').textContent = utilization + '%';
 
     const tierCounts = { Residency: 0, Member: 0, Session: 0 };
     activeMembers.forEach(m => tierCounts[m.tier]++);
 
-    document.getElementById('bar-residency').style.width = (tierCounts.Residency / TIERS.Residency.cap * 100) + '%';
-    document.getElementById('bar-member').style.width = (tierCounts.Member / TIERS.Member.cap * 100) + '%';
-    document.getElementById('bar-session').style.width = (tierCounts.Session / TIERS.Session.cap * 100) + '%';
+    if (el('bar-residency')) el('bar-residency').style.width = (tierCounts.Residency / TIERS.Residency.cap * 100) + '%';
+    if (el('bar-member')) el('bar-member').style.width = (tierCounts.Member / TIERS.Member.cap * 100) + '%';
+    if (el('bar-session')) el('bar-session').style.width = (tierCounts.Session / TIERS.Session.cap * 100) + '%';
 
-    document.getElementById('count-residency').textContent = `${tierCounts.Residency}/${TIERS.Residency.cap}`;
-    document.getElementById('count-member').textContent = `${tierCounts.Member}/${TIERS.Member.cap}`;
-    document.getElementById('count-session').textContent = `${tierCounts.Session}/${TIERS.Session.cap}`;
+    if (el('count-residency')) el('count-residency').textContent = `${tierCounts.Residency}/${TIERS.Residency.cap}`;
+    if (el('count-member')) el('count-member').textContent = `${tierCounts.Member}/${TIERS.Member.cap}`;
+    if (el('count-session')) el('count-session').textContent = `${tierCounts.Session}/${TIERS.Session.cap}`;
 
     renderUpcomingSessions();
     renderActivityFeed();
+
+    // Also update new dashboard
+    updateDashboardV2();
 }
 
 function renderUpcomingSessions() {
@@ -3111,3 +3135,997 @@ function deleteLinenRecord(recordId) {
     showToast('Record deleted', 'success');
     loadLinenStandards();
 }
+
+// ============================================
+// DASHBOARD UPGRADES
+// ============================================
+
+function updateDashboardV2() {
+    // Revenue by lane from invoices
+    const now = new Date();
+    const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    const monthInvoices = invoicesData.filter(inv => inv.status === 'paid' && inv.createdAt && inv.createdAt.startsWith(monthStr));
+    const laneRevenue = { estate: 0, camp: 0, tdp: 0, flex: 0 };
+    monthInvoices.forEach(inv => {
+        if (laneRevenue[inv.lane] !== undefined) laneRevenue[inv.lane] += inv.amount;
+    });
+
+    const totalRevenue = Object.values(laneRevenue).reduce((a, b) => a + b, 0);
+    const target = 60000;
+
+    const totalRevEl = document.getElementById('total-revenue');
+    if (totalRevEl) totalRevEl.textContent = '$' + totalRevenue.toLocaleString();
+    const revEstateEl = document.getElementById('rev-estate');
+    if (revEstateEl) revEstateEl.textContent = '$' + laneRevenue.estate.toLocaleString();
+    const revCampEl = document.getElementById('rev-camp');
+    if (revCampEl) revCampEl.textContent = '$' + laneRevenue.camp.toLocaleString();
+    const revTdpEl = document.getElementById('rev-tdp');
+    if (revTdpEl) revTdpEl.textContent = '$' + laneRevenue.tdp.toLocaleString();
+    const revFlexEl = document.getElementById('rev-flex');
+    if (revFlexEl) revFlexEl.textContent = '$' + laneRevenue.flex.toLocaleString();
+
+    // Lane bars (proportional to target)
+    const barEstate = document.getElementById('bar-estate');
+    if (barEstate) barEstate.style.width = Math.min((laneRevenue.estate / target) * 100, 100) + '%';
+    const barCamp = document.getElementById('bar-camp');
+    if (barCamp) barCamp.style.width = Math.min((laneRevenue.camp / target) * 100, 100) + '%';
+    const barTdp = document.getElementById('bar-tdp');
+    if (barTdp) barTdp.style.width = Math.min((laneRevenue.tdp / target) * 100, 100) + '%';
+    const barFlex = document.getElementById('bar-flex');
+    if (barFlex) barFlex.style.width = Math.min((laneRevenue.flex / target) * 100, 100) + '%';
+
+    // Open invoices
+    const openCount = invoicesData.filter(inv => inv.status === 'sent' || inv.status === 'overdue' || inv.status === 'deposit').length;
+    const openInvEl = document.getElementById('open-invoices');
+    if (openInvEl) openInvEl.textContent = openCount;
+
+    // Days booked this month
+    const monthBookings = bookings.filter(b => b.date && b.date.startsWith(monthStr));
+    const uniqueDays = new Set(monthBookings.map(b => b.date));
+    const daysBookedEl = document.getElementById('days-booked');
+    if (daysBookedEl) daysBookedEl.textContent = uniqueDays.size;
+
+    // Priority flag
+    const flagEl = document.getElementById('priority-flag');
+    const storedFlag = TorchStorage.load(TorchStorage.KEYS.PRIORITY_FLAG);
+    if (flagEl && storedFlag) flagEl.value = storedFlag;
+
+    // Clock
+    const clockEl = document.getElementById('dash-clock');
+    if (clockEl) {
+        clockEl.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+}
+
+function savePriorityFlag() {
+    const val = document.getElementById('priority-flag').value;
+    TorchStorage.save(TorchStorage.KEYS.PRIORITY_FLAG, val);
+}
+
+// Update clock every second
+setInterval(() => {
+    const clockEl = document.getElementById('dash-clock');
+    if (clockEl) clockEl.textContent = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}, 1000);
+
+// ============================================
+// CLIENT DIRECTORY
+// ============================================
+
+function filterClients() {
+    renderClientsTable();
+}
+
+function renderClientsTable() {
+    const tbody = document.getElementById('clients-tbody');
+    if (!tbody) return;
+
+    const search = (document.getElementById('client-search')?.value || '').toLowerCase();
+    const typeFilter = document.getElementById('client-type-filter')?.value || 'all';
+    const statusFilter = document.getElementById('client-status-filter')?.value || 'all';
+
+    let filtered = [...clients];
+    if (search) filtered = filtered.filter(c => c.name.toLowerCase().includes(search) || (c.contactName || '').toLowerCase().includes(search));
+    if (typeFilter !== 'all') filtered = filtered.filter(c => c.type === typeFilter);
+    if (statusFilter !== 'all') filtered = filtered.filter(c => c.status === statusFilter);
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-secondary);padding:40px;">No clients found. Add your first client to get started.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(c => `
+        <tr>
+            <td><strong>${escapeHTML(c.name)}</strong>${c.contactName ? '<br><span style="font-size:11px;color:var(--text-secondary);">' + escapeHTML(c.contactName) + '</span>' : ''}</td>
+            <td><span class="type-badge ${c.type}">${c.type}</span></td>
+            <td>${escapeHTML(c.email || '')}<br><span style="font-size:11px;">${escapeHTML(c.phone || '')}</span></td>
+            <td>${c.ndaSigned ? '<span style="color:var(--success);">Signed</span>' : '<span style="color:var(--text-muted);">—</span>'}</td>
+            <td>$${(c.lifetimeSpend || 0).toLocaleString()}</td>
+            <td>${c.lastBooking ? formatDate(c.lastBooking) : '—'}</td>
+            <td><span class="status-badge ${c.status}">${c.status}</span></td>
+            <td><button class="btn secondary small" onclick="deleteClient('${c.id}')">Remove</button></td>
+        </tr>
+    `).join('');
+}
+
+function addClient(event) {
+    event.preventDefault();
+    const client = {
+        id: 'client-' + Date.now(),
+        name: document.getElementById('client-name').value,
+        type: document.getElementById('client-type').value,
+        contactName: document.getElementById('client-contact-name').value || '',
+        email: document.getElementById('client-email').value || '',
+        phone: document.getElementById('client-phone').value || '',
+        referralSource: document.getElementById('client-referral').value || '',
+        rider: document.getElementById('client-rider').value || '',
+        ndaSigned: false,
+        cardOnFile: false,
+        lifetimeSpend: 0,
+        lastBooking: null,
+        status: 'active',
+        createdAt: new Date().toISOString()
+    };
+    clients.push(client);
+    TorchStorage.saveClients();
+    closeModal('add-client-modal');
+    showToast('Client added', 'success');
+    renderClientsTable();
+    event.target.reset();
+}
+
+function deleteClient(id) {
+    clients = clients.filter(c => c.id !== id);
+    TorchStorage.saveClients();
+    showToast('Client removed', 'success');
+    renderClientsTable();
+}
+
+// ============================================
+// INQUIRY PIPELINE
+// ============================================
+
+function filterInquiries() { renderInquiryPipeline(); }
+
+function renderInquiryPipeline() {
+    const container = document.getElementById('inquiry-pipeline');
+    if (!container) return;
+
+    const search = (document.getElementById('inquiry-search')?.value || '').toLowerCase();
+    const stageFilter = document.getElementById('inquiry-stage-filter')?.value || 'all';
+    const typeFilter = document.getElementById('inquiry-type-filter')?.value || 'all';
+
+    let filtered = [...inquiries];
+    if (search) filtered = filtered.filter(i => i.name.toLowerCase().includes(search));
+    if (stageFilter !== 'all') filtered = filtered.filter(i => i.stage === stageFilter);
+    if (typeFilter !== 'all') filtered = filtered.filter(i => i.bookingType === typeFilter);
+
+    const stages = ['new', 'nda-sent', 'nda-signed', 'rate-sent', 'negotiating', 'booked', 'lost'];
+    const stageLabels = { 'new': 'New Lead', 'nda-sent': 'NDA Sent', 'nda-signed': 'NDA Signed', 'rate-sent': 'Rate Card Sent', 'negotiating': 'Negotiating', 'booked': 'Booked', 'lost': 'Lost' };
+
+    container.innerHTML = stages.filter(s => stageFilter === 'all' || s === stageFilter).map(stage => {
+        const stageItems = filtered.filter(i => i.stage === stage);
+        return `
+        <div class="pipeline-column">
+            <div class="pipeline-header">
+                <h4>${stageLabels[stage]}</h4>
+                <span class="pipeline-count">${stageItems.length}</span>
+            </div>
+            ${stageItems.length === 0 ? '<div class="ops-empty" style="padding:20px;"><p>No items</p></div>' :
+            stageItems.map(i => `
+                <div class="pipeline-card">
+                    <h5>${escapeHTML(i.name)}</h5>
+                    <span class="type-badge">${i.bookingType}</span>
+                    <p style="font-size:11px;color:var(--text-secondary);margin-top:4px;">${escapeHTML(i.dates || '')} ${i.headcount ? '| ' + i.headcount + ' people' : ''}</p>
+                    ${i.description ? '<p style="font-size:11px;color:var(--text-secondary);margin-top:2px;">' + escapeHTML(i.description) + '</p>' : ''}
+                    <div class="card-actions" style="margin-top:8px;">
+                        ${stage !== 'booked' && stage !== 'lost' ? `<button class="btn primary small" onclick="advanceInquiry('${i.id}')">Advance</button>` : ''}
+                        ${stage !== 'lost' ? `<button class="btn secondary small" onclick="updateInquiryStage('${i.id}', 'lost')">Lost</button>` : ''}
+                    </div>
+                </div>
+            `).join('')}
+        </div>`;
+    }).join('');
+}
+
+function addInquiry(event) {
+    event.preventDefault();
+    const inquiry = {
+        id: 'inq-' + Date.now(),
+        name: document.getElementById('inquiry-name').value,
+        email: document.getElementById('inquiry-email').value || '',
+        bookingType: document.getElementById('inquiry-booking-type').value,
+        dates: document.getElementById('inquiry-dates').value || '',
+        headcount: document.getElementById('inquiry-headcount').value || '',
+        source: document.getElementById('inquiry-source').value || '',
+        description: document.getElementById('inquiry-description').value || '',
+        stage: 'new',
+        createdAt: new Date().toISOString()
+    };
+    inquiries.push(inquiry);
+    TorchStorage.saveInquiries();
+    closeModal('add-inquiry-modal');
+    showToast('Inquiry logged', 'success');
+    renderInquiryPipeline();
+    event.target.reset();
+}
+
+function advanceInquiry(id) {
+    const stages = ['new', 'nda-sent', 'nda-signed', 'rate-sent', 'negotiating', 'booked'];
+    const inq = inquiries.find(i => i.id === id);
+    if (inq) {
+        const idx = stages.indexOf(inq.stage);
+        if (idx < stages.length - 1) {
+            inq.stage = stages[idx + 1];
+            TorchStorage.saveInquiries();
+            showToast('Inquiry advanced to ' + inq.stage.replace('-', ' '), 'success');
+            renderInquiryPipeline();
+        }
+    }
+}
+
+function updateInquiryStage(id, stage) {
+    const inq = inquiries.find(i => i.id === id);
+    if (inq) {
+        inq.stage = stage;
+        TorchStorage.saveInquiries();
+        showToast('Inquiry updated', 'success');
+        renderInquiryPipeline();
+    }
+}
+
+// ============================================
+// TDP MEMBER PORTAL
+// ============================================
+
+function filterTdpMembers() { renderTdpMembers(); }
+
+function renderTdpMembers() {
+    const tbody = document.getElementById('tdp-members-tbody');
+    const statsBar = document.getElementById('tdp-stats');
+    if (!tbody) return;
+
+    const search = (document.getElementById('tdp-search')?.value || '').toLowerCase();
+    const tierFilter = document.getElementById('tdp-tier-filter')?.value || 'all';
+
+    let filtered = [...tdpMembers];
+    if (search) filtered = filtered.filter(m => m.name.toLowerCase().includes(search));
+    if (tierFilter !== 'all') filtered = filtered.filter(m => m.tier === tierFilter);
+
+    // Stats
+    const totalMRR = tdpMembers.reduce((sum, m) => sum + (m.monthlyRate || 0), 0);
+    if (statsBar) {
+        statsBar.innerHTML = `
+            <div class="linen-stat"><span class="linen-stat-num">${tdpMembers.length}</span><span class="linen-stat-label">Active Members</span></div>
+            <div class="linen-stat" style="border-color:var(--primary);"><span class="linen-stat-num" style="color:var(--primary);">$${totalMRR.toLocaleString()}</span><span class="linen-stat-label">Monthly MRR</span></div>
+        `;
+    }
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-secondary);padding:40px;">No TDP members yet.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(m => {
+        const tier = TIERS[m.tier] || {};
+        const hoursTotal = tier.hours || 0;
+        return `
+        <tr>
+            <td><strong>${escapeHTML(m.name)}</strong>${m.contact ? '<br><span style="font-size:11px;color:var(--text-secondary);">' + escapeHTML(m.contact) + '</span>' : ''}</td>
+            <td><span class="type-badge">${m.tier}</span></td>
+            <td>$${(m.monthlyRate || 0).toLocaleString()}</td>
+            <td>${m.daysUsed || 0}</td>
+            <td>${m.hoursUsed || 0} / ${hoursTotal}</td>
+            <td>${m.renewalDate ? formatDate(m.renewalDate) : '—'}</td>
+            <td><span class="status-badge ${m.status}">${m.status}</span></td>
+            <td><button class="btn secondary small" onclick="deleteTdpMember('${m.id}')">Remove</button></td>
+        </tr>`;
+    }).join('');
+}
+
+function addTdpMember(event) {
+    event.preventDefault();
+    const tier = document.getElementById('tdp-tier').value;
+    const isFounding = document.getElementById('tdp-founding').value === 'true';
+    const tierData = TIERS[tier] || {};
+    const rate = isFounding ? (tierData.foundingPrice || tierData.price) : tierData.price;
+
+    const startDate = document.getElementById('tdp-start-date').value;
+    const renewalDate = new Date(startDate);
+    renewalDate.setMonth(renewalDate.getMonth() + 1);
+
+    const member = {
+        id: 'tdp-' + Date.now(),
+        name: document.getElementById('tdp-name').value,
+        contact: document.getElementById('tdp-contact').value || '',
+        email: document.getElementById('tdp-email').value || '',
+        tier: tier,
+        monthlyRate: rate,
+        founding: isFounding,
+        startDate: startDate,
+        renewalDate: renewalDate.toISOString().split('T')[0],
+        daysUsed: 0,
+        hoursUsed: 0,
+        status: 'active',
+        createdAt: new Date().toISOString()
+    };
+    tdpMembers.push(member);
+    TorchStorage.saveTdpMembers();
+    closeModal('add-tdp-member-modal');
+    showToast('TDP member added', 'success');
+    renderTdpMembers();
+    event.target.reset();
+}
+
+function deleteTdpMember(id) {
+    tdpMembers = tdpMembers.filter(m => m.id !== id);
+    TorchStorage.saveTdpMembers();
+    showToast('Member removed', 'success');
+    renderTdpMembers();
+}
+
+// ============================================
+// FINANCIALS — TAB SWITCHING
+// ============================================
+
+function switchFinTab(tab) {
+    document.querySelectorAll('#invoices .ops-sub-tab').forEach(t => t.classList.remove('active'));
+    const activeTab = document.querySelector(`#invoices .ops-sub-tab[data-ops-tab="${tab}"]`);
+    if (activeTab) activeTab.classList.add('active');
+    document.querySelectorAll('#invoices .ops-view').forEach(v => { v.style.display = 'none'; v.classList.remove('active'); });
+    const view = document.getElementById(`ops-${tab}-view`);
+    if (view) { view.style.display = 'block'; view.classList.add('active'); }
+
+    if (tab === 'fin-invoices') loadInvoices();
+    else if (tab === 'fin-expenses') loadExpenses();
+    else if (tab === 'fin-barter') loadBarterItems();
+    else if (tab === 'fin-pnl') loadPnlSummary();
+}
+
+// ============================================
+// INVOICES
+// ============================================
+
+function loadInvoices() {
+    const container = document.getElementById('invoices-list');
+    const statsBar = document.getElementById('invoice-stats');
+    if (!container) return;
+
+    const statusFilter = document.getElementById('invoice-status-filter')?.value || 'all';
+    const laneFilter = document.getElementById('invoice-lane-filter')?.value || 'all';
+
+    let filtered = [...invoicesData];
+    if (statusFilter !== 'all') filtered = filtered.filter(i => i.status === statusFilter);
+    if (laneFilter !== 'all') filtered = filtered.filter(i => i.lane === laneFilter);
+
+    filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    // Stats
+    const totalPaid = invoicesData.filter(i => i.status === 'paid').reduce((s, i) => s + i.amount, 0);
+    const totalPending = invoicesData.filter(i => i.status === 'sent' || i.status === 'deposit').reduce((s, i) => s + i.amount, 0);
+    const totalOverdue = invoicesData.filter(i => i.status === 'overdue').reduce((s, i) => s + i.amount, 0);
+
+    if (statsBar) {
+        statsBar.innerHTML = `
+            <div class="linen-stat pass"><span class="linen-stat-num">$${totalPaid.toLocaleString()}</span><span class="linen-stat-label">Collected</span></div>
+            <div class="linen-stat"><span class="linen-stat-num">$${totalPending.toLocaleString()}</span><span class="linen-stat-label">Pending</span></div>
+            <div class="linen-stat fail"><span class="linen-stat-num">$${totalOverdue.toLocaleString()}</span><span class="linen-stat-label">Overdue</span></div>
+        `;
+    }
+
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="ops-empty"><h4>No invoices</h4><p>Create your first invoice to start tracking revenue.</p></div>';
+        return;
+    }
+
+    container.innerHTML = filtered.map(inv => `
+        <div class="maint-card">
+            <div class="card-header">
+                <h4>${escapeHTML(inv.client)}</h4>
+                <span class="status-badge ${inv.status}">${inv.status}</span>
+            </div>
+            <div class="card-meta">
+                <span class="type-badge">${inv.lane}</span>
+                <span style="font-weight:600;color:var(--primary);">$${inv.amount.toLocaleString()}</span>
+                <span>Due: ${formatDate(inv.dueDate)}</span>
+            </div>
+            ${inv.description ? '<p style="font-size:12px;color:var(--text-secondary);margin-top:6px;">' + escapeHTML(inv.description) + '</p>' : ''}
+            <div class="card-actions">
+                ${inv.status === 'draft' ? `<button class="btn primary" onclick="updateInvoiceStatus('${inv.id}', 'sent')">Mark Sent</button>` : ''}
+                ${inv.status === 'sent' ? `<button class="btn primary" onclick="updateInvoiceStatus('${inv.id}', 'deposit')">Deposit In</button>` : ''}
+                ${inv.status === 'deposit' ? `<button class="btn primary" onclick="updateInvoiceStatus('${inv.id}', 'paid')">Paid in Full</button>` : ''}
+                ${inv.status === 'sent' || inv.status === 'deposit' ? `<button class="btn secondary" onclick="updateInvoiceStatus('${inv.id}', 'overdue')">Mark Overdue</button>` : ''}
+                <button class="btn secondary" onclick="deleteInvoice('${inv.id}')">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addInvoice(event) {
+    event.preventDefault();
+    const inv = {
+        id: 'inv-' + Date.now(),
+        client: document.getElementById('invoice-client').value,
+        lane: document.getElementById('invoice-lane').value,
+        amount: parseFloat(document.getElementById('invoice-amount').value),
+        dueDate: document.getElementById('invoice-due').value,
+        description: document.getElementById('invoice-description').value || '',
+        status: 'draft',
+        createdAt: new Date().toISOString()
+    };
+    invoicesData.push(inv);
+    TorchStorage.saveInvoicesData();
+    closeModal('add-invoice-modal');
+    showToast('Invoice created', 'success');
+    loadInvoices();
+    updateDashboardV2();
+    event.target.reset();
+}
+
+function updateInvoiceStatus(id, status) {
+    const inv = invoicesData.find(i => i.id === id);
+    if (inv) {
+        inv.status = status;
+        if (status === 'paid') inv.paidAt = new Date().toISOString();
+        TorchStorage.saveInvoicesData();
+        showToast('Invoice ' + status, 'success');
+        loadInvoices();
+        updateDashboardV2();
+    }
+}
+
+function deleteInvoice(id) {
+    invoicesData = invoicesData.filter(i => i.id !== id);
+    TorchStorage.saveInvoicesData();
+    showToast('Invoice deleted', 'success');
+    loadInvoices();
+    updateDashboardV2();
+}
+
+// ============================================
+// EXPENSES
+// ============================================
+
+function loadExpenses() {
+    const container = document.getElementById('expenses-list');
+    if (!container) return;
+
+    const catFilter = document.getElementById('expense-category-filter')?.value || 'all';
+    let filtered = [...expenses];
+    if (catFilter !== 'all') filtered = filtered.filter(e => e.category === catFilter);
+    filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="ops-empty"><h4>No expenses logged</h4><p>Log expenses to track costs by category.</p></div>';
+        return;
+    }
+
+    container.innerHTML = filtered.map(e => `
+        <div class="vendor-card">
+            <div class="card-header">
+                <h4>${escapeHTML(e.description)}</h4>
+                <span style="font-weight:600;color:#ef4444;">-$${e.amount.toLocaleString()}</span>
+            </div>
+            <div class="card-meta">
+                <span class="type-badge">${e.category}</span>
+                <span>${formatDate(e.date)}</span>
+                ${e.vendor ? '<span>' + escapeHTML(e.vendor) + '</span>' : ''}
+            </div>
+            <div class="card-actions">
+                <button class="btn secondary" onclick="deleteExpense('${e.id}')">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addExpense(event) {
+    event.preventDefault();
+    const exp = {
+        id: 'exp-' + Date.now(),
+        description: document.getElementById('expense-description').value,
+        category: document.getElementById('expense-category').value,
+        amount: parseFloat(document.getElementById('expense-amount').value),
+        date: document.getElementById('expense-date').value,
+        vendor: document.getElementById('expense-vendor').value || '',
+        createdAt: new Date().toISOString()
+    };
+    expenses.push(exp);
+    TorchStorage.saveExpenses();
+    closeModal('add-expense-modal');
+    showToast('Expense logged', 'success');
+    loadExpenses();
+    event.target.reset();
+}
+
+function deleteExpense(id) {
+    expenses = expenses.filter(e => e.id !== id);
+    TorchStorage.saveExpenses();
+    showToast('Expense deleted', 'success');
+    loadExpenses();
+}
+
+// ============================================
+// BARTER TRACKER
+// ============================================
+
+function loadBarterItems() {
+    const container = document.getElementById('barter-list');
+    if (!container) return;
+
+    const statusFilter = document.getElementById('barter-status-filter')?.value || 'all';
+    let filtered = [...barterItems];
+    if (statusFilter !== 'all') filtered = filtered.filter(b => b.status === statusFilter);
+
+    const statusOrder = { not_started: 0, in_progress: 1, completed: 2 };
+    filtered.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
+
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="ops-empty"><h4>No barter items</h4><p>Track barter deliverables and exchange value here.</p></div>';
+        return;
+    }
+
+    container.innerHTML = filtered.map(b => `
+        <div class="nate-card">
+            <div class="card-header">
+                <h4>${escapeHTML(b.deliverable)}</h4>
+                <span class="status-badge ${b.status}">${b.status.replace('_', ' ')}</span>
+            </div>
+            <div class="card-meta">
+                <span>Target: ${formatDate(b.targetDate)}</span>
+                ${b.valueExchanged ? '<span>Value: ' + escapeHTML(b.valueExchanged) + '</span>' : ''}
+            </div>
+            ${b.notes ? '<p style="font-size:12px;color:var(--text-secondary);margin-top:6px;">' + escapeHTML(b.notes) + '</p>' : ''}
+            <div class="card-actions">
+                ${b.status === 'not_started' ? `<button class="btn primary" onclick="updateBarterStatus('${b.id}', 'in_progress')">Start</button>` : ''}
+                ${b.status === 'in_progress' ? `<button class="btn primary" onclick="updateBarterStatus('${b.id}', 'completed')">Complete</button>` : ''}
+                <button class="btn secondary" onclick="deleteBarterItem('${b.id}')">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addBarterItem(event) {
+    event.preventDefault();
+    const item = {
+        id: 'barter-' + Date.now(),
+        deliverable: document.getElementById('barter-deliverable').value,
+        targetDate: document.getElementById('barter-target-date').value,
+        valueExchanged: document.getElementById('barter-value').value || '',
+        notes: document.getElementById('barter-notes').value || '',
+        status: 'not_started',
+        createdAt: new Date().toISOString()
+    };
+    barterItems.push(item);
+    TorchStorage.saveBarterItems();
+    closeModal('add-barter-modal');
+    showToast('Barter item added', 'success');
+    loadBarterItems();
+    event.target.reset();
+}
+
+function updateBarterStatus(id, status) {
+    const item = barterItems.find(b => b.id === id);
+    if (item) {
+        item.status = status;
+        TorchStorage.saveBarterItems();
+        showToast('Barter item ' + status.replace('_', ' '), 'success');
+        loadBarterItems();
+    }
+}
+
+function deleteBarterItem(id) {
+    barterItems = barterItems.filter(b => b.id !== id);
+    TorchStorage.saveBarterItems();
+    showToast('Barter item deleted', 'success');
+    loadBarterItems();
+}
+
+// ============================================
+// P&L SUMMARY
+// ============================================
+
+function loadPnlSummary() {
+    const container = document.getElementById('pnl-summary');
+    if (!container) return;
+
+    const now = new Date();
+    const months = [];
+    for (let i = 0; i < 3; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({ label: d.toLocaleString('default', { month: 'long', year: 'numeric' }), key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` });
+    }
+
+    container.innerHTML = months.map(m => {
+        const monthRevenue = invoicesData.filter(i => i.status === 'paid' && i.paidAt && i.paidAt.startsWith(m.key)).reduce((s, i) => s + i.amount, 0);
+        const monthExpenses = expenses.filter(e => e.date && e.date.startsWith(m.key)).reduce((s, e) => s + e.amount, 0);
+        const net = monthRevenue - monthExpenses;
+        const netColor = net >= 0 ? 'var(--success)' : '#ef4444';
+
+        return `
+        <div class="card" style="margin-bottom:12px;">
+            <h4>${m.label}</h4>
+            <div style="display:flex;gap:24px;margin-top:8px;">
+                <div><span style="font-size:11px;color:var(--text-secondary);display:block;">Revenue</span><span style="font-size:18px;font-weight:600;color:var(--success);">$${monthRevenue.toLocaleString()}</span></div>
+                <div><span style="font-size:11px;color:var(--text-secondary);display:block;">Expenses</span><span style="font-size:18px;font-weight:600;color:#ef4444;">$${monthExpenses.toLocaleString()}</span></div>
+                <div><span style="font-size:11px;color:var(--text-secondary);display:block;">Net</span><span style="font-size:18px;font-weight:600;color:${netColor};">$${net.toLocaleString()}</span></div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// ============================================
+// GROWTH — TAB SWITCHING
+// ============================================
+
+function switchGrowthTab(tab) {
+    document.querySelectorAll('#pipeline .ops-sub-tab').forEach(t => t.classList.remove('active'));
+    const activeTab = document.querySelector(`#pipeline .ops-sub-tab[data-ops-tab="${tab}"]`);
+    if (activeTab) activeTab.classList.add('active');
+    document.querySelectorAll('#pipeline .ops-view').forEach(v => { v.style.display = 'none'; v.classList.remove('active'); });
+    const view = document.getElementById(`ops-${tab}-view`);
+    if (view) { view.style.display = 'block'; view.classList.add('active'); }
+
+    if (tab === 'camp-outreach') loadCampOutreach();
+    else if (tab === 'tdp-prospects') loadTdpProspects();
+    else if (tab === 'marketing-cal') loadMarketingCalendar();
+}
+
+// ============================================
+// CAMP OUTREACH
+// ============================================
+
+function loadCampOutreach() {
+    const container = document.getElementById('outreach-list');
+    if (!container) return;
+
+    const stageFilter = document.getElementById('outreach-stage-filter')?.value || 'all';
+    let filtered = [...campOutreach];
+    if (stageFilter !== 'all') filtered = filtered.filter(c => c.stage === stageFilter);
+
+    const stageOrder = { identified: 0, contacted: 1, in_conversation: 2, booked: 3, not_interested: 4 };
+    filtered.sort((a, b) => stageOrder[a.stage] - stageOrder[b.stage]);
+
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="ops-empty"><h4>No outreach contacts</h4><p>Add A&Rs, publishers, and managers to track camp outreach.</p></div>';
+        return;
+    }
+
+    container.innerHTML = filtered.map(c => `
+        <div class="vendor-card">
+            <div class="card-header">
+                <h4>${escapeHTML(c.name)}</h4>
+                <span class="status-badge ${c.stage}">${c.stage.replace('_', ' ')}</span>
+            </div>
+            <div class="card-meta">
+                ${c.role ? '<span>' + escapeHTML(c.role) + '</span>' : ''}
+                ${c.email ? '<span>' + escapeHTML(c.email) + '</span>' : ''}
+                ${c.followUpDate ? '<span>Follow-up: ' + formatDate(c.followUpDate) + '</span>' : ''}
+            </div>
+            ${c.notes ? '<p style="font-size:12px;color:var(--text-secondary);margin-top:6px;">' + escapeHTML(c.notes) + '</p>' : ''}
+            <div class="card-actions">
+                ${c.stage === 'identified' ? `<button class="btn primary" onclick="updateOutreachStage('${c.id}', 'contacted')">Mark Contacted</button>` : ''}
+                ${c.stage === 'contacted' ? `<button class="btn primary" onclick="updateOutreachStage('${c.id}', 'in_conversation')">In Conversation</button>` : ''}
+                ${c.stage === 'in_conversation' ? `<button class="btn primary" onclick="updateOutreachStage('${c.id}', 'booked')">Booked!</button>` : ''}
+                <button class="btn secondary" onclick="deleteOutreach('${c.id}')">Remove</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addOutreachContact(event) {
+    event.preventDefault();
+    const contact = {
+        id: 'outreach-' + Date.now(),
+        name: document.getElementById('outreach-name').value,
+        role: document.getElementById('outreach-role').value || '',
+        email: document.getElementById('outreach-email').value || '',
+        followUpDate: document.getElementById('outreach-followup').value || '',
+        notes: document.getElementById('outreach-notes').value || '',
+        stage: 'identified',
+        createdAt: new Date().toISOString()
+    };
+    campOutreach.push(contact);
+    TorchStorage.saveCampOutreach();
+    closeModal('add-outreach-modal');
+    showToast('Contact added', 'success');
+    loadCampOutreach();
+    event.target.reset();
+}
+
+function updateOutreachStage(id, stage) {
+    const c = campOutreach.find(x => x.id === id);
+    if (c) { c.stage = stage; TorchStorage.saveCampOutreach(); showToast('Stage updated', 'success'); loadCampOutreach(); }
+}
+
+function deleteOutreach(id) {
+    campOutreach = campOutreach.filter(c => c.id !== id);
+    TorchStorage.saveCampOutreach();
+    showToast('Contact removed', 'success');
+    loadCampOutreach();
+}
+
+// ============================================
+// TDP PROSPECTS
+// ============================================
+
+function loadTdpProspects() {
+    const container = document.getElementById('prospects-list');
+    if (!container) return;
+
+    const stageFilter = document.getElementById('prospect-stage-filter')?.value || 'all';
+    let filtered = [...tdpProspects];
+    if (stageFilter !== 'all') filtered = filtered.filter(p => p.stage === stageFilter);
+
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="ops-empty"><h4>No prospects</h4><p>Track labels and management companies in conversation for TDP membership.</p></div>';
+        return;
+    }
+
+    container.innerHTML = filtered.map(p => `
+        <div class="nate-card">
+            <div class="card-header">
+                <h4>${escapeHTML(p.company)}</h4>
+                <span class="status-badge ${p.stage}">${p.stage}</span>
+            </div>
+            <div class="card-meta">
+                <span class="type-badge">${p.targetTier}</span>
+                ${p.contact ? '<span>' + escapeHTML(p.contact) + '</span>' : ''}
+                ${p.email ? '<span>' + escapeHTML(p.email) + '</span>' : ''}
+            </div>
+            ${p.notes ? '<p style="font-size:12px;color:var(--text-secondary);margin-top:6px;">' + escapeHTML(p.notes) + '</p>' : ''}
+            <div class="card-actions">
+                <button class="btn secondary" onclick="deleteTdpProspect('${p.id}')">Remove</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addTdpProspect(event) {
+    event.preventDefault();
+    const prospect = {
+        id: 'prospect-' + Date.now(),
+        company: document.getElementById('prospect-company').value,
+        targetTier: document.getElementById('prospect-tier').value,
+        contact: document.getElementById('prospect-contact').value || '',
+        email: document.getElementById('prospect-email').value || '',
+        notes: document.getElementById('prospect-notes').value || '',
+        stage: 'lead',
+        createdAt: new Date().toISOString()
+    };
+    tdpProspects.push(prospect);
+    TorchStorage.saveTdpProspects();
+    closeModal('add-prospect-modal');
+    showToast('Prospect added', 'success');
+    loadTdpProspects();
+    event.target.reset();
+}
+
+function deleteTdpProspect(id) {
+    tdpProspects = tdpProspects.filter(p => p.id !== id);
+    TorchStorage.saveTdpProspects();
+    showToast('Prospect removed', 'success');
+    loadTdpProspects();
+}
+
+// ============================================
+// MARKETING CALENDAR
+// ============================================
+
+function loadMarketingCalendar() {
+    const container = document.getElementById('marketing-list');
+    if (!container) return;
+
+    const statusFilter = document.getElementById('content-status-filter')?.value || 'all';
+    const platformFilter = document.getElementById('content-platform-filter')?.value || 'all';
+
+    let filtered = [...marketingCal];
+    if (statusFilter !== 'all') filtered = filtered.filter(c => c.status === statusFilter);
+    if (platformFilter !== 'all') filtered = filtered.filter(c => c.platform === platformFilter);
+
+    filtered.sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate));
+
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="ops-empty"><h4>No content planned</h4><p>Plan your marketing content across platforms.</p></div>';
+        return;
+    }
+
+    container.innerHTML = filtered.map(c => `
+        <div class="vendor-card">
+            <div class="card-header">
+                <h4>${escapeHTML(c.title)}</h4>
+                <span class="status-badge ${c.status}">${c.status.replace('_', ' ')}</span>
+            </div>
+            <div class="card-meta">
+                <span class="type-badge">${c.platform}</span>
+                ${c.format ? '<span>' + escapeHTML(c.format) + '</span>' : ''}
+                <span>${formatDate(c.scheduledDate)}</span>
+            </div>
+            ${c.notes ? '<p style="font-size:12px;color:var(--text-secondary);margin-top:6px;">' + escapeHTML(c.notes) + '</p>' : ''}
+            <div class="card-actions">
+                ${c.status === 'planned' ? `<button class="btn primary" onclick="updateContentStatus('${c.id}', 'in_production')">In Production</button>` : ''}
+                ${c.status === 'in_production' ? `<button class="btn primary" onclick="updateContentStatus('${c.id}', 'posted')">Posted</button>` : ''}
+                <button class="btn secondary" onclick="deleteContent('${c.id}')">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addContentItem(event) {
+    event.preventDefault();
+    const item = {
+        id: 'content-' + Date.now(),
+        title: document.getElementById('content-title').value,
+        platform: document.getElementById('content-platform').value,
+        format: document.getElementById('content-format').value || '',
+        scheduledDate: document.getElementById('content-date').value,
+        notes: document.getElementById('content-notes').value || '',
+        status: 'planned',
+        createdAt: new Date().toISOString()
+    };
+    marketingCal.push(item);
+    TorchStorage.saveMarketingCal();
+    closeModal('add-content-modal');
+    showToast('Content added', 'success');
+    loadMarketingCalendar();
+    event.target.reset();
+}
+
+function updateContentStatus(id, status) {
+    const c = marketingCal.find(x => x.id === id);
+    if (c) { c.status = status; TorchStorage.saveMarketingCal(); showToast('Status updated', 'success'); loadMarketingCalendar(); }
+}
+
+function deleteContent(id) {
+    marketingCal = marketingCal.filter(c => c.id !== id);
+    TorchStorage.saveMarketingCal();
+    showToast('Content deleted', 'success');
+    loadMarketingCalendar();
+}
+
+// ============================================
+// MILESTONES
+// ============================================
+
+function loadMilestones() {
+    const container = document.getElementById('milestones-list');
+    if (!container) return;
+
+    let items = [...buildMilestones];
+    const statusOrder = { in_progress: 0, not_started: 1, completed: 2 };
+    items.sort((a, b) => (statusOrder[a.status] || 1) - (statusOrder[b.status] || 1));
+
+    if (items.length === 0) {
+        container.innerHTML = '<div class="ops-empty"><h4>No milestones</h4><p>Track Studio A, garage room, and other build milestones.</p></div>';
+        return;
+    }
+
+    container.innerHTML = items.map(m => `
+        <div class="nate-card">
+            <div class="card-header">
+                <h4>${escapeHTML(m.title)}</h4>
+                <span class="status-badge ${m.status}">${m.status.replace('_', ' ')}</span>
+            </div>
+            <div class="card-meta">
+                ${m.owner ? '<span>Owner: ' + escapeHTML(m.owner) + '</span>' : ''}
+                <span>Target: ${formatDate(m.targetDate)}</span>
+            </div>
+            ${m.notes ? '<p style="font-size:12px;color:var(--text-secondary);margin-top:6px;">' + escapeHTML(m.notes) + '</p>' : ''}
+            <div class="card-actions">
+                ${m.status === 'not_started' ? `<button class="btn primary" onclick="updateMilestoneStatus('${m.id}', 'in_progress')">Start</button>` : ''}
+                ${m.status === 'in_progress' ? `<button class="btn primary" onclick="updateMilestoneStatus('${m.id}', 'completed')">Complete</button>` : ''}
+                <button class="btn secondary" onclick="deleteMilestone('${m.id}')">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addMilestone(event) {
+    event.preventDefault();
+    const ms = {
+        id: 'ms-' + Date.now(),
+        title: document.getElementById('milestone-title').value,
+        owner: document.getElementById('milestone-owner').value || '',
+        targetDate: document.getElementById('milestone-target').value,
+        notes: document.getElementById('milestone-notes').value || '',
+        status: 'not_started',
+        createdAt: new Date().toISOString()
+    };
+    buildMilestones.push(ms);
+    TorchStorage.saveMilestones();
+    closeModal('add-milestone-modal');
+    showToast('Milestone added', 'success');
+    loadMilestones();
+    event.target.reset();
+}
+
+function updateMilestoneStatus(id, status) {
+    const m = buildMilestones.find(x => x.id === id);
+    if (m) { m.status = status; TorchStorage.saveMilestones(); showToast('Milestone updated', 'success'); loadMilestones(); }
+}
+
+function deleteMilestone(id) {
+    buildMilestones = buildMilestones.filter(m => m.id !== id);
+    TorchStorage.saveMilestones();
+    showToast('Milestone deleted', 'success');
+    loadMilestones();
+}
+
+// ============================================
+// EQUIPMENT INVENTORY
+// ============================================
+
+function loadEquipment() {
+    const container = document.getElementById('equipment-list');
+    if (!container) return;
+
+    if (equipmentInv.length === 0) {
+        container.innerHTML = '<div class="ops-empty"><h4>No equipment logged</h4><p>Track studio equipment, condition, and location.</p></div>';
+        return;
+    }
+
+    container.innerHTML = equipmentInv.map(e => `
+        <div class="vendor-card">
+            <div class="card-header">
+                <h4>${escapeHTML(e.name)}</h4>
+                <span class="status-badge ${e.condition}">${e.condition}</span>
+            </div>
+            <div class="card-meta">
+                <span class="type-badge">${e.category}</span>
+                <span>${e.location.replace('-', ' ')}</span>
+            </div>
+            ${e.notes ? '<p style="font-size:12px;color:var(--text-secondary);margin-top:6px;">' + escapeHTML(e.notes) + '</p>' : ''}
+            <div class="card-actions">
+                <button class="btn secondary" onclick="deleteEquipment('${e.id}')">Remove</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addEquipmentItem(event) {
+    event.preventDefault();
+    const item = {
+        id: 'equip-' + Date.now(),
+        name: document.getElementById('equip-name').value,
+        location: document.getElementById('equip-location').value,
+        category: document.getElementById('equip-category').value,
+        condition: document.getElementById('equip-condition').value,
+        notes: document.getElementById('equip-notes').value || '',
+        createdAt: new Date().toISOString()
+    };
+    equipmentInv.push(item);
+    TorchStorage.saveEquipment();
+    closeModal('add-equipment-modal');
+    showToast('Equipment added', 'success');
+    loadEquipment();
+    event.target.reset();
+}
+
+function deleteEquipment(id) {
+    equipmentInv = equipmentInv.filter(e => e.id !== id);
+    TorchStorage.saveEquipment();
+    showToast('Equipment removed', 'success');
+    loadEquipment();
+}
+
+// ============================================
+// SEED MILESTONES ON INIT
+// ============================================
+
+function initNewModules() {
+    if (buildMilestones.length === 0 && typeof SEED_MILESTONES !== 'undefined') {
+        buildMilestones = JSON.parse(JSON.stringify(SEED_MILESTONES));
+        TorchStorage.saveMilestones();
+        console.log('[OpsHub] Seeded milestones');
+    }
+    // Load priority flag
+    const storedFlag = TorchStorage.load(TorchStorage.KEYS.PRIORITY_FLAG);
+    if (storedFlag) priorityFlag = storedFlag;
+
+    // Call dashboard update
+    setTimeout(updateDashboardV2, 600);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(initNewModules, 600);
+});

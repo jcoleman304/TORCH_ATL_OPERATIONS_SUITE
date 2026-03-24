@@ -143,6 +143,29 @@ let vendors = [];
 let maintenanceLog = [];
 let linenStandards = [];
 
+let clients = [];
+let inquiries = [];
+let tdpMembers = [];
+let invoicesData = [];
+let expenses = [];
+let barterItems = [];
+let campOutreach = [];
+let tdpProspects = [];
+let marketingCal = [];
+let buildMilestones = [];
+let equipmentInv = [];
+let priorityFlag = '';
+
+// Seed milestones
+const SEED_MILESTONES = [
+    { id: 'ms-001', title: 'Studios B & C — bookable now', owner: 'Joi', targetDate: '2026-03-15', status: 'completed', notes: 'Both rooms operational', createdAt: '2026-03-15T00:00:00.000Z' },
+    { id: 'ms-002', title: 'Booking portal live', owner: 'Joi', targetDate: '2026-04-15', status: 'in_progress', notes: 'Building on existing backend', createdAt: '2026-03-23T00:00:00.000Z' },
+    { id: 'ms-003', title: 'First camp booking confirmed', owner: 'Joi', targetDate: '2026-05-01', status: 'not_started', notes: '', createdAt: '2026-03-23T00:00:00.000Z' },
+    { id: 'ms-004', title: 'First TDP partnership activated', owner: 'Joi', targetDate: '2026-05-15', status: 'not_started', notes: '', createdAt: '2026-03-23T00:00:00.000Z' },
+    { id: 'ms-005', title: 'Studio A acoustic finishing complete', owner: 'Chuck', targetDate: '2026-09-01', status: 'in_progress', notes: 'Booth door (full glass-frame), additional panels', createdAt: '2026-03-23T00:00:00.000Z' },
+    { id: 'ms-006', title: 'Garage room build begins', owner: 'Chuck', targetDate: '2026-10-01', status: 'not_started', notes: '', createdAt: '2026-03-23T00:00:00.000Z' }
+];
+
 // Seed data — only used if localStorage is empty (loaded in app.js init)
 const SEED_VENDORS = [
     {

@@ -18,7 +18,19 @@ const TorchStorage = {
         NATE_TASKS: 'torch_nate_tasks',
         VENDORS: 'torch_vendors',
         MAINTENANCE_LOG: 'torch_maintenance_log',
-        LINEN_STANDARDS: 'torch_linen_standards'
+        LINEN_STANDARDS: 'torch_linen_standards',
+        CLIENTS: 'torch_clients',
+        INQUIRIES: 'torch_inquiries',
+        TDP_MEMBERS: 'torch_tdp_members',
+        INVOICES_DATA: 'torch_invoices_data',
+        EXPENSES: 'torch_expenses',
+        BARTER_ITEMS: 'torch_barter_items',
+        CAMP_OUTREACH: 'torch_camp_outreach',
+        TDP_PROSPECTS: 'torch_tdp_prospects',
+        MARKETING_CAL: 'torch_marketing_cal',
+        BUILD_MILESTONES: 'torch_milestones',
+        EQUIPMENT_INV: 'torch_equipment',
+        PRIORITY_FLAG: 'torch_priority_flag'
     },
 
     // Initialize storage - load all data on app start
@@ -115,6 +127,30 @@ const TorchStorage = {
             linenStandards = loadedLinenStandards;
             console.log(`[TorchStorage] Loaded ${linenStandards.length} linen records from storage`);
         }
+
+        const loadedClients = this.load(this.KEYS.CLIENTS);
+        const loadedInquiries = this.load(this.KEYS.INQUIRIES);
+        const loadedTdpMembers = this.load(this.KEYS.TDP_MEMBERS);
+        const loadedInvoicesData = this.load(this.KEYS.INVOICES_DATA);
+        const loadedExpenses = this.load(this.KEYS.EXPENSES);
+        const loadedBarterItems = this.load(this.KEYS.BARTER_ITEMS);
+        const loadedCampOutreach = this.load(this.KEYS.CAMP_OUTREACH);
+        const loadedTdpProspects = this.load(this.KEYS.TDP_PROSPECTS);
+        const loadedMarketingCal = this.load(this.KEYS.MARKETING_CAL);
+        const loadedMilestones = this.load(this.KEYS.BUILD_MILESTONES);
+        const loadedEquipment = this.load(this.KEYS.EQUIPMENT_INV);
+
+        if (loadedClients && loadedClients.length > 0) { clients = loadedClients; }
+        if (loadedInquiries && loadedInquiries.length > 0) { inquiries = loadedInquiries; }
+        if (loadedTdpMembers && loadedTdpMembers.length > 0) { tdpMembers = loadedTdpMembers; }
+        if (loadedInvoicesData && loadedInvoicesData.length > 0) { invoicesData = loadedInvoicesData; }
+        if (loadedExpenses && loadedExpenses.length > 0) { expenses = loadedExpenses; }
+        if (loadedBarterItems && loadedBarterItems.length > 0) { barterItems = loadedBarterItems; }
+        if (loadedCampOutreach && loadedCampOutreach.length > 0) { campOutreach = loadedCampOutreach; }
+        if (loadedTdpProspects && loadedTdpProspects.length > 0) { tdpProspects = loadedTdpProspects; }
+        if (loadedMarketingCal && loadedMarketingCal.length > 0) { marketingCal = loadedMarketingCal; }
+        if (loadedMilestones && loadedMilestones.length > 0) { buildMilestones = loadedMilestones; }
+        if (loadedEquipment && loadedEquipment.length > 0) { equipmentInv = loadedEquipment; }
     },
 
     // Load a single key from localStorage
@@ -163,6 +199,17 @@ const TorchStorage = {
         this.save(this.KEYS.VENDORS, vendors);
         this.save(this.KEYS.MAINTENANCE_LOG, maintenanceLog);
         this.save(this.KEYS.LINEN_STANDARDS, linenStandards);
+        this.save(this.KEYS.CLIENTS, clients);
+        this.save(this.KEYS.INQUIRIES, inquiries);
+        this.save(this.KEYS.TDP_MEMBERS, tdpMembers);
+        this.save(this.KEYS.INVOICES_DATA, invoicesData);
+        this.save(this.KEYS.EXPENSES, expenses);
+        this.save(this.KEYS.BARTER_ITEMS, barterItems);
+        this.save(this.KEYS.CAMP_OUTREACH, campOutreach);
+        this.save(this.KEYS.TDP_PROSPECTS, tdpProspects);
+        this.save(this.KEYS.MARKETING_CAL, marketingCal);
+        this.save(this.KEYS.BUILD_MILESTONES, buildMilestones);
+        this.save(this.KEYS.EQUIPMENT_INV, equipmentInv);
 
         console.log('[TorchStorage] All data saved');
     },
@@ -215,6 +262,19 @@ const TorchStorage = {
     saveLinenStandards() {
         return this.save(this.KEYS.LINEN_STANDARDS, linenStandards);
     },
+
+    saveClients() { return this.save(this.KEYS.CLIENTS, clients); },
+    saveInquiries() { return this.save(this.KEYS.INQUIRIES, inquiries); },
+    saveTdpMembers() { return this.save(this.KEYS.TDP_MEMBERS, tdpMembers); },
+    saveInvoicesData() { return this.save(this.KEYS.INVOICES_DATA, invoicesData); },
+    saveExpenses() { return this.save(this.KEYS.EXPENSES, expenses); },
+    saveBarterItems() { return this.save(this.KEYS.BARTER_ITEMS, barterItems); },
+    saveCampOutreach() { return this.save(this.KEYS.CAMP_OUTREACH, campOutreach); },
+    saveTdpProspects() { return this.save(this.KEYS.TDP_PROSPECTS, tdpProspects); },
+    saveMarketingCal() { return this.save(this.KEYS.MARKETING_CAL, marketingCal); },
+    saveMilestones() { return this.save(this.KEYS.BUILD_MILESTONES, buildMilestones); },
+    saveEquipment() { return this.save(this.KEYS.EQUIPMENT_INV, equipmentInv); },
+    savePriorityFlag() { return this.save(this.KEYS.PRIORITY_FLAG, priorityFlag); },
 
     saveCurrentAdmin() {
         return this.save(this.KEYS.CURRENT_ADMIN, currentAdminUser);

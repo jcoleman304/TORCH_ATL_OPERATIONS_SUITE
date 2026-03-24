@@ -3116,6 +3116,217 @@ tbody tr:hover {
 .type-badge.ad-hoc { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border-color: transparent; }
 
 /* Responsive */
+/* ============================================ */
+/* SIDEBAR SECTIONS                             */
+/* ============================================ */
+
+.nav-section {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--primary);
+    padding: 16px 20px 4px;
+    cursor: default;
+    list-style: none;
+}
+
+.nav-section:first-of-type {
+    padding-top: 8px;
+}
+
+/* ============================================ */
+/* DASHBOARD V2                                 */
+/* ============================================ */
+
+.dash-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--success);
+    font-weight: 600;
+}
+
+.dash-status .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.dash-status .status-dot.online {
+    background: var(--success);
+    box-shadow: 0 0 6px var(--success);
+}
+
+.lane-breakdown {
+    padding: 8px 0;
+}
+
+/* ============================================ */
+/* STUDIOS & ROOMS                              */
+/* ============================================ */
+
+.studios-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.studio-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+}
+
+.studio-card.studio-a {
+    border-left: 3px solid var(--primary);
+}
+
+.studio-card.studio-b {
+    border-left: 3px solid #60a5fa;
+}
+
+.studio-card.studio-c {
+    border-left: 3px solid #a78bfa;
+}
+
+.studio-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.studio-gear {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 10px 0;
+}
+
+.gear-tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+}
+
+.studio-status {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    padding: 4px 0;
+}
+
+.status-label {
+    color: var(--text-secondary);
+}
+
+.status-value {
+    font-weight: 600;
+}
+
+/* ============================================ */
+/* INQUIRY PIPELINE                             */
+/* ============================================ */
+
+.pipeline-board {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 12px;
+}
+
+.pipeline-column {
+    min-width: 200px;
+    flex: 1;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.pipeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.pipeline-header h4 {
+    font-size: 12px;
+    color: var(--text-primary);
+}
+
+.pipeline-count {
+    font-size: 11px;
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.pipeline-card {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 8px;
+}
+
+.pipeline-card h5 {
+    font-size: 13px;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+/* ============================================ */
+/* TDP STATS BAR                                */
+/* ============================================ */
+
+.tdp-stats-bar {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+/* ============================================ */
+/* FINANCIAL STATS BAR                          */
+/* ============================================ */
+
+.fin-stats-bar {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+/* ============================================ */
+/* CHECKBOX GROUP                               */
+/* ============================================ */
+
+.checkbox-group {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 6px 0;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
 @media (max-width: 768px) {
     .operations-sub-tabs {
         -webkit-overflow-scrolling: touch;
@@ -3144,5 +3355,17 @@ tbody tr:hover {
 
     .linen-stat {
         flex: 1 1 45%;
+    }
+
+    .studios-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .pipeline-board {
+        flex-direction: column;
+    }
+
+    .pipeline-column {
+        min-width: 100%;
     }
 }
