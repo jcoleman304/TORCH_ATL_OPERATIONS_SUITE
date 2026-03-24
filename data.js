@@ -35,7 +35,16 @@ let smsHistory = [];
 let emailHistory = { sent: [], scheduled: [], drafts: [] };
 let activityFeed = [];
 let engineers = [];
-let adminUsers = [];
+let adminUsers = [
+    {
+        id: 'admin-001',
+        name: 'Joi Coleman',
+        email: 'joi.coleman@torchatl.com',
+        role: 'admin',
+        accessCode: 'Torch3814!',
+        permissions: ['all']
+    }
+];
 let sessionReports = [];
 
 // Email Templates
