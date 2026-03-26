@@ -50,6 +50,10 @@
             </li>
 
             <li class="nav-section admin-only">ESTATE OPERATIONS</li>
+            <li class="admin-only" data-tab="booking-requests">
+                <span class="icon">📩</span>
+                <span>Booking Requests</span>
+            </li>
             <li class="admin-only" data-tab="bookings">
                 <span class="icon">📅</span>
                 <span>Bookings</span>
@@ -372,6 +376,148 @@
                 </table>
             </div>
         </section>
+
+        <!-- Booking Requests Tab (External — bookings.torchatl.com) -->
+        <section id="booking-requests" class="tab-content">
+            <header class="page-header">
+                <h2>Booking Requests</h2>
+                <div style="display:flex;gap:12px;align-items:center;">
+                    <select id="br-status-filter" onchange="loadBookingRequests()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);padding:8px 12px;border-radius:8px;font-size:13px;">
+                        <option value="">All Statuses</option>
+                        <option value="pending" selected>Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="deposit_paid">Deposit Paid</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="completed">Completed</option>
+                        <option value="denied">Denied</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                    <button class="btn secondary small" onclick="loadBookingRequests()">Refresh</button>
+                </div>
+            </header>
+
+            <!-- Stats Row -->
+            <div class="stats-row" id="br-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+                <div class="stat-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;">
+                    <div style="color:var(--text-secondary);font-size:12px;text-transform:uppercase;letter-spacing:0.1em;">Pending</div>
+                    <div id="br-stat-pending" style="font-size:28px;font-weight:600;color:var(--warning);margin-top:4px;">—</div>
+                </div>
+                <div class="stat-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;">
+                    <div style="color:var(--text-secondary);font-size:12px;text-transform:uppercase;letter-spacing:0.1em;">Approved</div>
+                    <div id="br-stat-approved" style="font-size:28px;font-weight:600;color:var(--primary);margin-top:4px;">—</div>
+                </div>
+                <div class="stat-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;">
+                    <div style="color:var(--text-secondary);font-size:12px;text-transform:uppercase;letter-spacing:0.1em;">Confirmed</div>
+                    <div id="br-stat-confirmed" style="font-size:28px;font-weight:600;color:var(--success);margin-top:4px;">—</div>
+                </div>
+                <div class="stat-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;">
+                    <div style="color:var(--text-secondary);font-size:12px;text-transform:uppercase;letter-spacing:0.1em;">Revenue (Est.)</div>
+                    <div id="br-stat-revenue" style="font-size:28px;font-weight:600;color:var(--primary);margin-top:4px;">—</div>
+                </div>
+            </div>
+
+            <!-- Requests Table -->
+            <div class="table-container" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Confirmation</th>
+                            <th>Client</th>
+                            <th>Session</th>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Total</th>
+                            <th>Payment</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="br-tbody">
+                        <tr><td colspan="9" style="text-align:center;padding:48px;color:var(--text-muted);">Loading booking requests...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Booking Request Detail Modal -->
+        <div id="br-detail-modal" class="modal">
+            <div class="modal-content wide">
+                <div class="modal-header">
+                    <h3 id="br-detail-title">Booking Details</h3>
+                    <button onclick="closeModal('br-detail-modal')" class="close-btn">&times;</button>
+                </div>
+                <div id="br-detail-body" style="padding:24px;">
+                    <!-- Populated by JS -->
+                </div>
+                <div class="modal-footer" id="br-detail-footer">
+                    <!-- Action buttons populated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Deny Reason Modal -->
+        <div id="br-deny-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Deny Booking Request</h3>
+                    <button onclick="closeModal('br-deny-modal')" class="close-btn">&times;</button>
+                </div>
+                <div style="padding:24px;">
+                    <div class="form-group">
+                        <label>Reason (optional — sent to client)</label>
+                        <textarea id="br-deny-reason" rows="3" placeholder="e.g. Dates unavailable, capacity at max..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn secondary" onclick="closeModal('br-deny-modal')">Cancel</button>
+                    <button class="btn primary" style="background:var(--danger);" onclick="confirmDenyBooking()">Deny Request</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment Update Modal -->
+        <div id="br-payment-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Update Payment</h3>
+                    <button onclick="closeModal('br-payment-modal')" class="close-btn">&times;</button>
+                </div>
+                <div style="padding:24px;">
+                    <div class="form-group">
+                        <label>Deposit Status</label>
+                        <select id="br-deposit-status">
+                            <option value="pending">Pending</option>
+                            <option value="sent">Sent</option>
+                            <option value="paid">Paid</option>
+                            <option value="overdue">Overdue</option>
+                            <option value="refunded">Refunded</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Balance Status</label>
+                        <select id="br-balance-status">
+                            <option value="pending">Pending</option>
+                            <option value="sent">Sent</option>
+                            <option value="paid">Paid</option>
+                            <option value="overdue">Overdue</option>
+                            <option value="refunded">Refunded</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>PO Number</label>
+                        <input type="text" id="br-po-number" placeholder="PO number (label bookings)">
+                    </div>
+                    <div class="form-group">
+                        <label>Invoice Number</label>
+                        <input type="text" id="br-invoice-number" placeholder="Invoice #">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn secondary" onclick="closeModal('br-payment-modal')">Cancel</button>
+                    <button class="btn primary" onclick="confirmPaymentUpdate()">Update Payment</button>
+                </div>
+            </div>
+        </div>
 
         <!-- Bookings Tab -->
         <section id="bookings" class="tab-content">

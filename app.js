@@ -266,6 +266,8 @@ function switchTab(tabId) {
         loadCampOutreach();
     } else if (tabId === 'milestones') {
         loadMilestones();
+    } else if (tabId === 'booking-requests') {
+        loadBookingRequests();
     } else if (tabId === 'dashboard') {
         updateDashboardV2();
     }
@@ -4129,3 +4131,285 @@ function initNewModules() {
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(initNewModules, 600);
 });
+
+// ================================================================
+// BOOKING REQUESTS MODULE — bookings.torchatl.com integration
+// ================================================================
+
+const BookingRequestsAPI = (() => {
+    const BASE = window.BOOKINGS_API_URL || 'https://bookings.torchatl.com';
+    const API_KEY = window.BOOKINGS_API_KEY || localStorage.getItem('bookings_api_key') || '';
+
+    async function req(path, options = {}) {
+        const headers = {
+            'Content-Type': 'application/json',
+            'x-api-key': API_KEY,
+            ...options.headers,
+        };
+        const res = await fetch(`${BASE}${path}`, { ...options, headers });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+        return data;
+    }
+
+    return {
+        list: (params = {}) => {
+            const q = new URLSearchParams(params).toString();
+            return req(`/api/booking-requests${q ? '?' + q : ''}`);
+        },
+        get: (id) => req(`/api/booking-requests/${id}`),
+        approve: (id, body = {}) => req(`/api/booking-requests/${id}/approve`, { method: 'PUT', body: JSON.stringify(body) }),
+        deny: (id, body = {}) => req(`/api/booking-requests/${id}/deny`, { method: 'PUT', body: JSON.stringify(body) }),
+        updatePayment: (id, body) => req(`/api/booking-requests/${id}/payment`, { method: 'PUT', body: JSON.stringify(body) }),
+        cancel: (id, body = {}) => req(`/api/booking-requests/${id}/cancel`, { method: 'PUT', body: JSON.stringify(body) }),
+        complete: (id) => req(`/api/booking-requests/${id}/complete`, { method: 'PUT', body: '{}' }),
+    };
+})();
+
+let _brCache = [];
+let _brSelectedId = null;
+
+async function loadBookingRequests() {
+    const tbody = document.getElementById('br-tbody');
+    const statusFilter = document.getElementById('br-status-filter')?.value;
+
+    try {
+        const params = {};
+        if (statusFilter) params.status = statusFilter;
+        const data = await BookingRequestsAPI.list(params);
+        _brCache = data;
+        renderBookingRequestsTable(data);
+        updateBRStats(data);
+    } catch (err) {
+        console.error('[BR] Load error:', err);
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:48px;color:var(--danger);">Failed to load: ${err.message}</td></tr>`;
+    }
+}
+
+function renderBookingRequestsTable(bookings) {
+    const tbody = document.getElementById('br-tbody');
+
+    if (!bookings.length) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:48px;color:var(--text-muted);">No booking requests found.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = bookings.map(b => {
+        const statusColors = {
+            pending: 'warning', approved: 'primary', deposit_paid: 'member',
+            confirmed: 'success', completed: 'success', denied: 'danger', cancelled: 'danger',
+        };
+        const color = statusColors[b.status] || 'text-muted';
+        const typeLabel = b.is_label_booking ? `<span style="color:var(--primary);font-size:11px;">LABEL</span>` : '<span style="color:var(--text-muted);font-size:11px;">INDIE</span>';
+        const total = b.estimated_total ? '$' + (b.estimated_total / 100).toLocaleString() : '—';
+        const depositBadge = b.deposit_status === 'paid' ? '<span style="color:var(--success);font-size:11px;">DEP PAID</span>' :
+                             b.deposit_status === 'overdue' ? '<span style="color:var(--danger);font-size:11px;">OVERDUE</span>' :
+                             `<span style="color:var(--text-muted);font-size:11px;">${(b.deposit_status || 'pending').toUpperCase()}</span>`;
+
+        return `<tr style="cursor:pointer;" onclick="viewBookingRequest('${b.id}')">
+            <td style="font-family:monospace;font-size:13px;color:var(--primary);">${b.confirmation_number}</td>
+            <td>
+                <div style="font-weight:500;">${escapeHTML(b.client_name)}</div>
+                ${b.artist_name ? `<div style="font-size:12px;color:var(--text-secondary);">${escapeHTML(b.artist_name)}</div>` : ''}
+            </td>
+            <td style="font-size:13px;">${b.session_type.replace(/_/g, ' ')}</td>
+            <td>${b.start_date}</td>
+            <td>${typeLabel}</td>
+            <td style="font-weight:500;">${total}</td>
+            <td>${depositBadge}</td>
+            <td><span class="status-badge" style="color:var(--${color});">${b.status.replace(/_/g, ' ')}</span></td>
+            <td>
+                ${b.status === 'pending' ? `
+                    <button class="btn primary small" onclick="event.stopPropagation();approveBookingRequest('${b.id}')" style="font-size:11px;padding:4px 10px;">Approve</button>
+                    <button class="btn secondary small" onclick="event.stopPropagation();denyBookingRequest('${b.id}')" style="font-size:11px;padding:4px 10px;margin-left:4px;">Deny</button>
+                ` : b.status === 'approved' || b.status === 'deposit_paid' ? `
+                    <button class="btn secondary small" onclick="event.stopPropagation();openPaymentModal('${b.id}')" style="font-size:11px;padding:4px 10px;">Payment</button>
+                ` : ''}
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function updateBRStats(bookings) {
+    // If filtered, load all for stats
+    const all = bookings;
+    const pending = all.filter(b => b.status === 'pending').length;
+    const approved = all.filter(b => ['approved', 'deposit_paid'].includes(b.status)).length;
+    const confirmed = all.filter(b => b.status === 'confirmed').length;
+    const revenue = all
+        .filter(b => ['approved', 'deposit_paid', 'confirmed', 'completed'].includes(b.status))
+        .reduce((sum, b) => sum + (b.estimated_total || 0), 0);
+
+    const el = (id) => document.getElementById(id);
+    el('br-stat-pending').textContent = pending;
+    el('br-stat-approved').textContent = approved;
+    el('br-stat-confirmed').textContent = confirmed;
+    el('br-stat-revenue').textContent = '$' + (revenue / 100).toLocaleString();
+}
+
+async function viewBookingRequest(id) {
+    _brSelectedId = id;
+    const b = _brCache.find(x => x.id === id);
+    if (!b) return;
+
+    document.getElementById('br-detail-title').textContent = `${b.confirmation_number} — ${b.client_name}`;
+
+    const fmt = (cents) => cents ? '$' + (cents / 100).toLocaleString() : '—';
+    const row = (label, val) => val ? `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);"><span style="color:var(--text-secondary);">${label}</span><span style="font-weight:500;">${val}</span></div>` : '';
+
+    let html = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">`;
+
+    // Left column — booking details
+    html += `<div>
+        <h4 style="color:var(--primary);font-size:12px;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px;">Booking Details</h4>
+        ${row('Session', b.session_type.replace(/_/g, ' '))}
+        ${row('Room', b.room ? b.room.replace(/_/g, ' ') : 'Full Estate')}
+        ${row('Start Date', b.start_date)}
+        ${b.end_date ? row('End Date', b.end_date) : ''}
+        ${b.start_time ? row('Time', `${b.start_time}${b.end_time ? ' — ' + b.end_time : ''}`) : ''}
+        ${row('Duration', b.duration_days + ' day(s)')}
+        ${row('Guests', b.guest_count)}
+        ${b.engineer_needed ? row('Engineer', b.engineer_hours + ' hrs') : ''}
+        ${b.catering_needed ? row('Catering', 'Yes' + (b.catering_notes ? ' — ' + escapeHTML(b.catering_notes) : '')) : ''}
+        ${b.special_requests ? row('Special Requests', escapeHTML(b.special_requests)) : ''}
+    </div>`;
+
+    // Right column — client + payment
+    html += `<div>
+        <h4 style="color:var(--primary);font-size:12px;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px;">Client & Payment</h4>
+        ${row('Name', escapeHTML(b.client_name))}
+        ${row('Email', `<a href="mailto:${b.client_email}" style="color:var(--primary);">${b.client_email}</a>`)}
+        ${row('Phone', `<a href="tel:${b.client_phone}" style="color:var(--primary);">${b.client_phone}</a>`)}
+        ${b.artist_name ? row('Artist', escapeHTML(b.artist_name)) : ''}
+        ${b.company ? row('Company', escapeHTML(b.company)) : ''}
+        ${b.is_label_booking ? `
+            <div style="margin:12px 0;padding:12px;background:rgba(212,175,55,0.05);border:1px solid rgba(212,175,55,0.15);border-radius:8px;">
+                <div style="color:var(--primary);font-size:11px;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Label Booking</div>
+                ${row('Label', escapeHTML(b.label_name || ''))}
+                ${row('A&R Contact', escapeHTML(b.ar_contact_name || ''))}
+                ${b.ar_email ? row('A&R Email', `<a href="mailto:${b.ar_email}" style="color:var(--primary);">${b.ar_email}</a>`) : ''}
+                ${row('PO Number', b.po_number || '—')}
+            </div>
+        ` : ''}
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
+            ${row('Base Rate', fmt(b.base_rate))}
+            ${b.addons_total ? row('Add-ons', fmt(b.addons_total)) : ''}
+            ${row('Estimated Total', `<span style="color:var(--primary);font-size:16px;">${fmt(b.estimated_total)}</span>`)}
+            ${row('Deposit', `${fmt(b.deposit_amount)} — <span style="color:var(--${b.deposit_status === 'paid' ? 'success' : 'warning'});">${(b.deposit_status || 'pending').toUpperCase()}</span>`)}
+            ${row('Balance', `${fmt(b.balance_amount)} — <span style="color:var(--${b.balance_status === 'paid' ? 'success' : 'warning'});">${(b.balance_status || 'pending').toUpperCase()}</span>`)}
+            ${b.invoice_number ? row('Invoice #', b.invoice_number) : ''}
+        </div>
+    </div>`;
+
+    html += `</div>`;
+
+    // Admin notes
+    if (b.admin_notes) {
+        html += `<div style="margin-top:16px;padding:12px;background:var(--bg-input);border-radius:8px;"><strong style="color:var(--text-secondary);font-size:12px;">Admin Notes:</strong><br>${escapeHTML(b.admin_notes)}</div>`;
+    }
+
+    // Ops status
+    html += `<div style="margin-top:16px;display:flex;gap:16px;">
+        ${b.nate_notified_at ? `<span style="color:var(--success);font-size:12px;">Nate notified ${new Date(b.nate_notified_at).toLocaleDateString()}</span>` : '<span style="color:var(--text-muted);font-size:12px;">Nate not yet notified</span>'}
+        ${b.amanda_notified_at ? `<span style="color:var(--success);font-size:12px;">Amanda notified ${new Date(b.amanda_notified_at).toLocaleDateString()}</span>` : '<span style="color:var(--text-muted);font-size:12px;">Amanda not yet notified</span>'}
+    </div>`;
+
+    document.getElementById('br-detail-body').innerHTML = html;
+
+    // Footer actions based on status
+    let actions = `<button class="btn secondary" onclick="closeModal('br-detail-modal')">Close</button>`;
+    if (b.status === 'pending') {
+        actions += `<button class="btn primary" onclick="closeModal('br-detail-modal');approveBookingRequest('${b.id}')">Approve</button>`;
+        actions += `<button class="btn secondary" style="color:var(--danger);border-color:var(--danger);" onclick="closeModal('br-detail-modal');denyBookingRequest('${b.id}')">Deny</button>`;
+    } else if (['approved', 'deposit_paid'].includes(b.status)) {
+        actions += `<button class="btn primary" onclick="closeModal('br-detail-modal');openPaymentModal('${b.id}')">Update Payment</button>`;
+    }
+    if (!['completed', 'cancelled', 'denied'].includes(b.status)) {
+        actions += `<button class="btn secondary" style="color:var(--danger);" onclick="closeModal('br-detail-modal');cancelBookingRequest('${b.id}')">Cancel</button>`;
+    }
+    document.getElementById('br-detail-footer').innerHTML = actions;
+
+    openModal('br-detail-modal');
+}
+
+async function approveBookingRequest(id) {
+    if (!confirm('Approve this booking? Client, Nate, and Amanda will be notified.')) return;
+    try {
+        await BookingRequestsAPI.approve(id, { approved_by: 'ops-suite' });
+        showToast('Booking approved — notifications sent', 'success');
+        loadBookingRequests();
+    } catch (err) {
+        showToast('Failed to approve: ' + err.message, 'error');
+    }
+}
+
+function denyBookingRequest(id) {
+    _brSelectedId = id;
+    document.getElementById('br-deny-reason').value = '';
+    openModal('br-deny-modal');
+}
+
+async function confirmDenyBooking() {
+    const reason = document.getElementById('br-deny-reason').value.trim();
+    try {
+        await BookingRequestsAPI.deny(_brSelectedId, { deny_reason: reason });
+        closeModal('br-deny-modal');
+        showToast('Booking denied — client notified', 'success');
+        loadBookingRequests();
+    } catch (err) {
+        showToast('Failed to deny: ' + err.message, 'error');
+    }
+}
+
+function openPaymentModal(id) {
+    _brSelectedId = id;
+    const b = _brCache.find(x => x.id === id);
+    if (b) {
+        document.getElementById('br-deposit-status').value = b.deposit_status || 'pending';
+        document.getElementById('br-balance-status').value = b.balance_status || 'pending';
+        document.getElementById('br-po-number').value = b.po_number || '';
+        document.getElementById('br-invoice-number').value = b.invoice_number || '';
+    }
+    openModal('br-payment-modal');
+}
+
+async function confirmPaymentUpdate() {
+    try {
+        await BookingRequestsAPI.updatePayment(_brSelectedId, {
+            deposit_status: document.getElementById('br-deposit-status').value,
+            balance_status: document.getElementById('br-balance-status').value,
+            po_number: document.getElementById('br-po-number').value || undefined,
+            invoice_number: document.getElementById('br-invoice-number').value || undefined,
+        });
+        closeModal('br-payment-modal');
+        showToast('Payment updated', 'success');
+        loadBookingRequests();
+    } catch (err) {
+        showToast('Failed to update payment: ' + err.message, 'error');
+    }
+}
+
+async function cancelBookingRequest(id) {
+    const reason = prompt('Cancellation reason (optional):');
+    if (reason === null) return; // user hit Cancel
+    try {
+        await BookingRequestsAPI.cancel(id, { reason });
+        showToast('Booking cancelled', 'success');
+        loadBookingRequests();
+    } catch (err) {
+        showToast('Failed to cancel: ' + err.message, 'error');
+    }
+}
+
+function showToast(message, type = 'info') {
+    // Use existing toast if available, otherwise alert
+    if (typeof window.showNotification === 'function') {
+        window.showNotification(message, type);
+    } else {
+        const toast = document.createElement('div');
+        toast.style.cssText = `position:fixed;bottom:24px;right:24px;padding:14px 24px;background:${type === 'error' ? 'var(--danger)' : type === 'success' ? 'var(--success)' : 'var(--primary)'};color:#fff;border-radius:8px;font-size:14px;z-index:9999;animation:fadeIn 0.3s ease;`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+    }
+}
