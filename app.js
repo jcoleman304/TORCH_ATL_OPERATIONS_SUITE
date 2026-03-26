@@ -4138,7 +4138,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 const BookingRequestsAPI = (() => {
     const BASE = window.BOOKINGS_API_URL || 'https://bookings.torchatl.com';
-    const API_KEY = window.BOOKINGS_API_KEY || localStorage.getItem('bookings_api_key') || '';
+    const API_KEY = 'c6589d8b44d6b1ee79168a9ff092959322f0011b3c094d00';
 
     async function req(path, options = {}) {
         const headers = {
