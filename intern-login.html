@@ -61,14 +61,8 @@ body::after{content:'';position:fixed;inset:0;background:url("data:image/svg+xml
   </div>
 
   <div class="login-card">
-    <div class="role-toggle">
-      <button class="role-btn active" id="btn-admin" onclick="setRole('admin')">Admin Portal</button>
-      <div class="role-divider"></div>
-      <button class="role-btn" id="btn-intern" onclick="setRole('intern')">Intern Portal</button>
-    </div>
-
-    <div id="role-badge" style="text-align:center">
-      <span class="login-badge badge-admin">Admin Access</span>
+    <div style="text-align:center">
+      <span class="login-badge badge-intern">Intern Portal</span>
     </div>
 
     <form id="login-form" onsubmit="handleLogin(event)">
@@ -93,17 +87,6 @@ body::after{content:'';position:fixed;inset:0;background:url("data:image/svg+xml
 
 <script>
 const API_URL = 'https://bookings.torchatl.com';
-let selectedRole = 'admin';
-
-function setRole(role) {
-  selectedRole = role;
-  document.getElementById('btn-admin').classList.toggle('active', role === 'admin');
-  document.getElementById('btn-intern').classList.toggle('active', role === 'intern');
-  document.getElementById('role-badge').innerHTML = role === 'admin'
-    ? '<span class="login-badge badge-admin">Admin Access</span>'
-    : '<span class="login-badge badge-intern">Intern Access</span>';
-  document.getElementById('login-error').textContent = '';
-}
 
 async function handleLogin(e) {
   e.preventDefault();
@@ -132,9 +115,9 @@ async function handleLogin(e) {
       return;
     }
 
-    // Check role matches
-    if (selectedRole === 'admin' && data.user.role !== 'admin') {
-      errorEl.textContent = 'This account does not have admin access.';
+    // Only allow intern logins — admins use the main ops suite
+    if (data.user.role === 'admin') {
+      errorEl.textContent = 'Admin accounts use the main operations portal.';
       btn.disabled = false;
       btn.textContent = 'Sign In';
       return;
@@ -144,12 +127,8 @@ async function handleLogin(e) {
     localStorage.setItem('torch_intern_token', data.token);
     localStorage.setItem('torch_intern_user', JSON.stringify(data.user));
 
-    // Redirect
-    if (data.user.role === 'admin') {
-      window.location.href = '/interns.html';
-    } else {
-      window.location.href = '/interns.html#intern';
-    }
+    // Redirect to intern portal
+    window.location.href = '/interns.html#intern';
 
   } catch (err) {
     errorEl.textContent = 'Unable to connect. Try again.';
@@ -158,13 +137,11 @@ async function handleLogin(e) {
   }
 }
 
-// Auto-redirect if already logged in
+// Auto-redirect if already logged in as intern
 const stored = localStorage.getItem('torch_intern_user');
 if (stored) {
   const user = JSON.parse(stored);
-  if (user.role === 'admin') {
-    window.location.href = '/interns.html';
-  } else {
+  if (user.role === 'intern') {
     window.location.href = '/interns.html#intern';
   }
 }
