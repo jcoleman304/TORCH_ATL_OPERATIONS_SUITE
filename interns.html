@@ -1765,6 +1765,464 @@ function buildCal(id, myShifts) {
 
 buildCal('shiftCal', null);
 buildCal('internShiftCal', [2,7,9,14,21,23,28,30]);
+
+// ════════════════════════════════════════════════
+// API CLIENT — connects UI to real database
+// ════════════════════════════════════════════════
+
+const INTERN_API = 'https://bookings.torchatl.com';
+const INTERN_KEY = 'c6589d8b44d6b1ee79168a9ff092959322f0011b3c094d00';
+
+async function apiCall(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json', 'x-api-key': INTERN_KEY, ...options.headers };
+  const res = await fetch(`${INTERN_API}${path}`, { ...options, headers });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+// ── State ──
+let allInterns = [];
+let allCohorts = [];
+let allShifts = [];
+let allSwaps = [];
+let allIncidents = [];
+let allComms = [];
+let allPerformance = [];
+
+// ── Load all data ──
+async function loadAllData() {
+  try {
+    [allInterns, allCohorts, allSwaps, allIncidents, allComms] = await Promise.all([
+      apiCall('/api/interns'),
+      apiCall('/api/cohorts'),
+      apiCall('/api/swap-requests'),
+      apiCall('/api/incidents'),
+      apiCall('/api/comms-log'),
+    ]);
+    renderDashboardStats();
+    renderPipeline();
+    renderInternsTable();
+    renderSwapsTable();
+    renderIncidentsTable();
+    renderCommsLog();
+    renderEscalations();
+    console.log('[InternOps] Data loaded:', allInterns.length, 'interns,', allCohorts.length, 'cohorts');
+  } catch (err) {
+    console.error('[InternOps] Failed to load data:', err);
+  }
+}
+
+// ── Dashboard Stats ──
+function renderDashboardStats() {
+  const active = allInterns.filter(i => i.status === 'active').length;
+  const pipeline = allInterns.filter(i => ['applied','nda_pending','training','testing','retake'].includes(i.pipeline_stage)).length;
+  const avgPerf = allInterns.filter(i => i.performance_avg).reduce((s,i) => s + i.performance_avg, 0) / (allInterns.filter(i => i.performance_avg).length || 1);
+  const openIncidents = allIncidents.filter(i => i.status === 'open').length;
+
+  const statsEl = document.querySelector('#page-dashboard-admin .stats-row');
+  if (statsEl) {
+    statsEl.innerHTML = `
+      <div class="stat-card"><div class="stat-label">Active Interns</div><div class="stat-value">${active}</div><div class="stat-sub">${allCohorts.filter(c=>c.status==='active').length} cohorts</div></div>
+      <div class="stat-card"><div class="stat-label">Pipeline</div><div class="stat-value">${pipeline}</div><div class="stat-delta-warn">${allInterns.filter(i=>i.status==='flagged').length} flagged</div></div>
+      <div class="stat-card"><div class="stat-label">Avg Performance</div><div class="stat-value">${Math.round(avgPerf) || '—'}<span style="font-size:18px">${avgPerf ? '%' : ''}</span></div></div>
+      <div class="stat-card"><div class="stat-label">Open Incidents</div><div class="stat-value">${openIncidents}</div>${openIncidents ? '<div class="stat-delta-warn">⚠ Unresolved</div>' : ''}</div>
+    `;
+  }
+}
+
+// ── Pipeline Kanban ──
+function renderPipeline() {
+  const kanban = document.querySelector('#page-pipeline-admin .kanban');
+  if (!kanban) return;
+
+  const stages = {
+    applied: 'Applied',
+    nda_pending: 'NDA Pending',
+    training: 'Training Guide',
+    testing: 'Test / Retake',
+    cleared: 'Cleared',
+  };
+
+  kanban.innerHTML = Object.entries(stages).map(([key, label]) => {
+    const interns = allInterns.filter(i => i.pipeline_stage === key || (key === 'testing' && (i.pipeline_stage === 'testing' || i.pipeline_stage === 'retake')));
+    return `<div class="kanban-col"><div class="kanban-col-label">${label}</div>${
+      interns.map(i => `<div class="kanban-card" onclick="viewInternDetail('${i.id}')"><div class="kanban-card-name">${i.full_name}</div><div class="kanban-card-meta">${i.track}${i.pipeline_stage === 'retake' ? ' ⚠ Retake' : ''}</div></div>`).join('')
+    }${interns.length === 0 ? '<div style="font-size:9px;color:var(--gray);padding:8px;">Empty</div>' : ''}</div>`;
+  }).join('');
+}
+
+// ── Interns Table ──
+function renderInternsTable() {
+  const tbody = document.querySelector('#page-interns-admin .data-table tbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = allInterns.filter(i => i.role === 'intern').map(i => {
+    const cohort = allCohorts.find(c => c.id === i.cohort_id);
+    const statusPill = {
+      active: 'pill-active', flagged: 'pill-flagged', onboarding: 'pill-pending',
+      denied: 'pill-denied', offboarding: 'pill-pending', offboarded: 'pill-offboarded'
+    };
+    const stars = i.performance_avg ? '★'.repeat(Math.round(i.performance_avg / 20)) + '☆'.repeat(5 - Math.round(i.performance_avg / 20)) : '—';
+    return `<tr class="clickable" onclick="viewInternDetail('${i.id}')">
+      <td><strong>${i.full_name}</strong></td>
+      <td>${i.track}</td>
+      <td>${cohort ? `<span class="cohort-tag">${cohort.name.split('—')[0].trim()}</span>` : '—'}</td>
+      <td style="color:${i.test_grade === 'A' ? 'var(--green)' : i.test_grade === 'B' ? 'var(--amber)' : i.test_grade === 'C' ? 'var(--gold)' : i.test_grade === 'F' ? 'var(--red)' : 'var(--gray)'}">${i.test_score ? i.test_score + '% ' + i.test_grade : '—'}</td>
+      <td><span class="rating-badge">${stars}</span></td>
+      <td>${i.end_date || '—'}</td>
+      <td><span class="pill ${statusPill[i.status] || 'pill-pending'}">${i.status}</span></td>
+      <td><button class="btn btn-ghost">Profile</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--gray);padding:24px;">No interns yet. Add applicants from the Pipeline.</td></tr>';
+}
+
+// ── Intern Detail Modal ──
+function viewInternDetail(id) {
+  const i = allInterns.find(x => x.id === id);
+  if (!i) return;
+
+  const modal = document.getElementById('internModal');
+  modal.querySelector('.modal-title').textContent = i.full_name;
+  modal.querySelector('.modal-sub').textContent = `${i.track} Track · ${i.status}`;
+
+  const statsGrid = modal.querySelector('[style*="grid-template-columns"]');
+  if (statsGrid) {
+    statsGrid.innerHTML = `
+      <div><div class="stat-label">Score</div><div style="font-size:18px;font-family:'Playfair Display',serif;color:${i.test_grade === 'A' ? 'var(--green)' : 'var(--cream)'}">${i.test_score || '—'}%</div></div>
+      <div><div class="stat-label">Grade</div><div style="font-size:18px;font-family:'Playfair Display',serif;">${i.test_grade || '—'}</div></div>
+      <div><div class="stat-label">Performance</div><div style="font-size:18px;font-family:'Playfair Display',serif;">${i.performance_avg || '—'}%</div></div>
+      <div><div class="stat-label">Status</div><div><span class="pill pill-${i.status === 'active' ? 'active' : i.status === 'flagged' ? 'flagged' : 'pending'}">${i.status}</span></div></div>
+    `;
+  }
+
+  modal.classList.add('open');
+}
+
+// ── Swap Requests ──
+function renderSwapsTable() {
+  const container = document.querySelector('#page-swaps-admin .card');
+  if (!container) return;
+
+  const pending = allSwaps.filter(s => s.status === 'pending');
+  const decided = allSwaps.filter(s => s.status !== 'pending');
+
+  let html = `<div class="card-header-row"><div class="card-title">Pending Requests</div><span class="pill pill-pending">${pending.length} Awaiting</span></div>`;
+
+  pending.forEach(s => {
+    html += `<div class="swap-card">
+      <div class="swap-info"><strong>${s.requester?.full_name || '?'} ↔ ${s.target?.full_name || '?'}</strong>${s.reason || ''}</div>
+      <div class="swap-arrow">⇄</div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-gold btn-sm" onclick="decideSwap('${s.id}','approved')">Approve</button>
+        <button class="btn btn-danger" onclick="decideSwap('${s.id}','denied')">Deny</button>
+      </div>
+    </div>`;
+  });
+
+  if (!pending.length) html += '<div style="font-size:11px;color:var(--gray);padding:12px 0;">No pending swap requests.</div>';
+
+  container.innerHTML = html;
+}
+
+async function decideSwap(id, status) {
+  try {
+    await apiCall(`/api/swap-requests/${id}/decide`, { method: 'PUT', body: JSON.stringify({ status }) });
+    showToast(`Swap ${status}`, 'Logged.');
+    loadAllData();
+  } catch (err) { showToast('Error', err.message); }
+}
+
+// ── Incidents ──
+function renderIncidentsTable() {
+  const container = document.querySelector('#page-incidents-admin .card .card-header-row')?.parentElement;
+  if (!container) return;
+
+  const open = allIncidents.filter(i => i.status === 'open');
+  if (!open.length) return;
+
+  let html = `<div class="card-header-row"><div class="card-title">Open Incidents</div><span class="pill pill-flagged">${open.length} Unresolved</span></div>`;
+  open.forEach(inc => {
+    html += `<div class="incident-card" style="border-color:rgba(201,76,76,0.2)">
+      <div class="incident-header">
+        <div><div class="incident-type">${inc.incident_type}</div><div class="incident-title">${inc.title}</div></div>
+        <div style="text-align:right"><div class="incident-date">${new Date(inc.incident_date).toLocaleDateString()}</div><span class="pill pill-flagged">${inc.status}</span></div>
+      </div>
+      <div class="incident-body">${inc.description}</div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="btn btn-warn" onclick="resolveIncident('${inc.id}','warning_issued')">Issue Warning</button>
+        <button class="btn btn-ghost" onclick="resolveIncident('${inc.id}','resolved')">Mark Resolved</button>
+      </div>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+async function resolveIncident(id, status) {
+  try {
+    await apiCall(`/api/incidents/${id}`, { method: 'PATCH', body: JSON.stringify({ status, resolved_at: new Date().toISOString(), resolved_by: 'admin' }) });
+    showToast('Incident Updated', `Status: ${status}`);
+    loadAllData();
+  } catch (err) { showToast('Error', err.message); }
+}
+
+// ── Comms Log ──
+function renderCommsLog() {
+  const container = document.querySelector('#page-commslog-admin .card');
+  if (!container) return;
+
+  const dotClass = { approval: 'log-dot-sent', denial: 'log-dot-flag', retake_notice: 'log-dot-warn', nda_confirmation: 'log-dot-sent', offboard_notice: 'log-dot-auto', escalation: 'log-dot-flag', application: 'log-dot-auto', custom: 'log-dot-auto' };
+
+  let html = `<div class="card-header-row"><div class="card-title">All Communications</div></div>`;
+  allComms.forEach(c => {
+    html += `<div class="log-entry">
+      <div class="log-dot ${dotClass[c.comm_type] || 'log-dot-auto'}"></div>
+      <div class="log-body">
+        <div class="log-title">${c.subject}</div>
+        <div class="log-detail">${c.detail || ''}</div>
+        <div class="log-meta">${new Date(c.created_at).toLocaleString()} · ${c.sender} · ${c.channel}</div>
+      </div>
+    </div>`;
+  });
+
+  if (!allComms.length) html += '<div style="font-size:11px;color:var(--gray);padding:12px 0;">No communications logged yet.</div>';
+  container.innerHTML = html;
+}
+
+// ── Escalations ──
+function renderEscalations() {
+  const container = document.querySelector('#page-escalations-admin');
+  if (!container) return;
+
+  const escalations = [];
+
+  // Overdue NDAs (>48hrs)
+  allInterns.filter(i => i.pipeline_stage === 'nda_pending' && i.approval_sent_at).forEach(i => {
+    const hrs = (Date.now() - new Date(i.approval_sent_at)) / (1000*60*60);
+    if (hrs > 48) escalations.push({ type: 'warn', icon: '🟡', title: `${i.full_name} — NDA Overdue (${Math.round(hrs)}hrs)`, msg: 'NDA sent but not signed. Auto-reminders sent.', time: i.approval_sent_at, id: i.id });
+  });
+
+  // Retake deadlines passed
+  allInterns.filter(i => i.pipeline_stage === 'retake' && i.retake_deadline && new Date(i.retake_deadline) < new Date()).forEach(i => {
+    escalations.push({ type: 'warn', icon: '🟡', title: `${i.full_name} — Retake Deadline Passed`, msg: 'B-score retake window has closed.', time: i.retake_deadline, id: i.id });
+  });
+
+  // Open incidents > 72hrs
+  allIncidents.filter(i => i.status === 'open').forEach(inc => {
+    const hrs = (Date.now() - new Date(inc.created_at)) / (1000*60*60);
+    if (hrs > 72) escalations.push({ type: 'danger', icon: '🔴', title: `Incident — Unresolved (${Math.round(hrs/24)} days)`, msg: inc.title, time: inc.created_at });
+  });
+
+  // Approaching end dates (30 days)
+  const in30 = new Date(Date.now() + 30*24*60*60*1000);
+  const ending = allInterns.filter(i => i.status === 'active' && i.end_date && new Date(i.end_date) <= in30);
+  if (ending.length) {
+    escalations.push({ type: 'info', icon: '🔵', title: `${ending.length} Intern(s) — End of Term Within 30 Days`, msg: ending.map(i => i.full_name).join(', '), time: new Date().toISOString() });
+  }
+
+  // Render
+  const header = container.querySelector('.page-header');
+  let html = header.outerHTML;
+
+  if (!escalations.length) {
+    html += '<div class="card" style="text-align:center;padding:40px;color:var(--gray);">No active escalations. System is clear.</div>';
+  } else {
+    escalations.forEach(e => {
+      html += `<div class="alert-card ${e.type}">
+        <div class="alert-icon">${e.icon}</div>
+        <div class="alert-body">
+          <div class="alert-title">${e.title}</div>
+          <div class="alert-msg">${e.msg}</div>
+          <div class="alert-time">${new Date(e.time).toLocaleString()} · Auto-generated</div>
+        </div>
+      </div>`;
+    });
+  }
+
+  container.innerHTML = html;
+}
+
+// ── Pipeline Form Handler ──
+const pipelineForm = document.querySelector('#page-pipeline-admin .btn-gold');
+if (pipelineForm) {
+  pipelineForm.onclick = async function() {
+    const name = document.querySelector('#page-pipeline-admin input[placeholder="First Last"]')?.value;
+    const email = document.querySelector('#page-pipeline-admin input[type="email"]')?.value;
+    const track = document.querySelector('#page-pipeline-admin .form-select')?.value;
+    const decision = document.querySelectorAll('#page-pipeline-admin .form-select')[2]?.value;
+    const startDate = document.querySelector('#page-pipeline-admin input[type="date"]')?.value;
+    const endDate = document.querySelectorAll('#page-pipeline-admin input[type="date"]')[1]?.value;
+
+    if (!name || !email || !track) { showToast('Missing Fields', 'Name, email, and track required.'); return; }
+
+    try {
+      // Create the intern account with a temp password
+      const tempPass = 'Torch' + Math.random().toString(36).slice(2, 8);
+      const result = await apiCall('/api/intern/create', {
+        method: 'POST',
+        body: JSON.stringify({
+          full_name: name, email, track,
+          password: tempPass,
+          start_date: startDate || null,
+          end_date: endDate || null,
+          decision: decision === 'Send Denial' ? 'denied' : undefined,
+        }),
+      });
+
+      if (decision === 'Send Denial') {
+        await apiCall(`/api/intern/${result.intern.id}/deny`, { method: 'PUT', body: JSON.stringify({}) });
+        showToast('Denied', `${name} denied. Logged.`);
+      } else {
+        const cohort = allCohorts.find(c => c.status === 'active');
+        await apiCall(`/api/intern/${result.intern.id}/approve`, {
+          method: 'PUT',
+          body: JSON.stringify({ start_date: startDate, end_date: endDate, cohort_id: cohort?.id }),
+        });
+        showToast('Onboarding Initiated', `${name} approved. NDA pending. Temp password: ${tempPass}`);
+      }
+
+      loadAllData();
+    } catch (err) {
+      showToast('Error', err.message);
+    }
+  };
+}
+
+// ── Performance Form Handler ──
+const perfSubmit = document.querySelector('#page-performance-admin .btn-gold');
+if (perfSubmit) {
+  perfSubmit.onclick = async function() {
+    const internSelect = document.getElementById('perfInternSelect');
+    const weekInput = document.querySelector('#page-performance-admin input[type="date"]');
+    if (!internSelect || !weekInput) return;
+
+    const internName = internSelect.value.split(' — ')[0];
+    const intern = allInterns.find(i => i.full_name === internName);
+    if (!intern) { showToast('Error', 'Select an intern'); return; }
+
+    const getStarCount = (id) => document.querySelectorAll(`#stars-${id} .star.filled`).length || 0;
+
+    try {
+      await apiCall('/api/performance', {
+        method: 'POST',
+        body: JSON.stringify({
+          intern_id: intern.id,
+          week_ending: weekInput.value,
+          punctuality: getStarCount('punct'),
+          torch_standard: getStarCount('standard'),
+          initiative: getStarCount('initiative'),
+          communication: getStarCount('comm'),
+          notes: document.querySelector('#page-performance-admin textarea')?.value || '',
+        }),
+      });
+      showToast('Rating Submitted', 'Logged to intern profile.');
+      loadAllData();
+    } catch (err) { showToast('Error', err.message); }
+  };
+}
+
+// ── Shift Assignment Handler ──
+const shiftSubmit = document.querySelector('#page-shifts-admin .btn-gold');
+if (shiftSubmit) {
+  shiftSubmit.onclick = async function() {
+    const internSelect = document.querySelector('#page-shifts-admin .form-select');
+    const dateInput = document.querySelector('#page-shifts-admin input[type="date"]');
+    const startTime = document.querySelectorAll('#page-shifts-admin input[type="time"]')[0];
+    const endTime = document.querySelectorAll('#page-shifts-admin input[type="time"]')[1];
+
+    const internName = internSelect?.value.split(' — ')[0];
+    const intern = allInterns.find(i => i.full_name === internName);
+    if (!intern || !dateInput?.value) { showToast('Error', 'Select intern and date'); return; }
+
+    try {
+      await apiCall('/api/shifts', {
+        method: 'POST',
+        body: JSON.stringify({
+          intern_id: intern.id,
+          shift_date: dateInput.value,
+          start_time: startTime?.value || '09:00',
+          end_time: endTime?.value || '17:00',
+          area: intern.track + ' Suite',
+        }),
+      });
+      showToast('Shift Assigned', `${intern.full_name} — ${dateInput.value}`);
+    } catch (err) { showToast('Error', err.message); }
+  };
+}
+
+// ── Incident Form Handler ──
+const incidentSubmit = document.querySelector('#page-incidents-admin .card:last-child .btn-gold');
+if (incidentSubmit) {
+  incidentSubmit.onclick = async function() {
+    const selects = document.querySelectorAll('#page-incidents-admin .card:last-child .form-select');
+    const internName = selects[0]?.value;
+    const incidentType = selects[1]?.value;
+    const severity = selects[2]?.value?.split(' — ')[0]?.toLowerCase();
+    const dateInput = document.querySelector('#page-incidents-admin .card:last-child input[type="datetime-local"]');
+    const desc = document.querySelector('#page-incidents-admin .card:last-child textarea');
+
+    const intern = allInterns.find(i => i.full_name === internName);
+    if (!intern || !desc?.value) { showToast('Error', 'Fill all required fields'); return; }
+
+    try {
+      await apiCall('/api/incidents', {
+        method: 'POST',
+        body: JSON.stringify({
+          intern_id: intern.id,
+          incident_type: incidentType,
+          severity: severity || 'minor',
+          title: incidentType + ' — ' + intern.full_name,
+          description: desc.value,
+          incident_date: dateInput?.value ? new Date(dateInput.value).toISOString() : new Date().toISOString(),
+        }),
+      });
+      showToast('Incident Logged', 'Auto-escalation timer set.');
+      loadAllData();
+    } catch (err) { showToast('Error', err.message); }
+  };
+}
+
+// ── Guest List Handler ──
+const guestSubmit = document.querySelector('#page-guests-admin .card:last-child .btn-gold');
+if (guestSubmit) {
+  guestSubmit.onclick = async function() {
+    const inputs = document.querySelectorAll('#page-guests-admin .card:last-child .form-input');
+    const guestName = inputs[0]?.value;
+    const approvedBy = inputs[1]?.value || 'Joi Coleman';
+    const entryWindow = inputs[2]?.value;
+    const dateInput = document.querySelector('#page-guests-admin .card:last-child input[type="date"]');
+    const area = document.querySelector('#page-guests-admin .card:last-child .form-select')?.value;
+
+    if (!guestName) { showToast('Error', 'Guest name required'); return; }
+
+    try {
+      await apiCall('/api/guest-list', {
+        method: 'POST',
+        body: JSON.stringify({
+          guest_name: guestName,
+          approved_by: approvedBy,
+          entry_date: dateInput?.value || new Date().toISOString().split('T')[0],
+          entry_window: entryWindow,
+          area: area,
+        }),
+      });
+      showToast('Guest Added', `${guestName} added to today's list.`);
+    } catch (err) { showToast('Error', err.message); }
+  };
+}
+
+// ── Update intern select dropdowns with real data ──
+function updateInternSelects() {
+  const activeInterns = allInterns.filter(i => i.role === 'intern' && i.status === 'active');
+  document.querySelectorAll('#perfInternSelect, #page-shifts-admin .form-select, #page-incidents-admin .form-select:first-of-type').forEach(sel => {
+    if (!sel || sel.dataset.populated) return;
+    sel.innerHTML = activeInterns.map(i => `<option>${i.full_name} — ${i.track}</option>`).join('');
+    sel.dataset.populated = 'true';
+  });
+}
+
+// ── Load on page ready ──
+loadAllData().then(() => updateInternSelects());
 </script>
 </body>
 </html>
