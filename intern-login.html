@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TORCH ATL — Intern Operations Login</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap');
+:root{--black:#0A0A0A;--surface:#141414;--surface2:#1A1A1A;--gold:#C9A84C;--gold-light:#E2CC7E;--gold-dim:#8A7434;--cream:#F5F2EB;--gray:#555;--gray-light:#888;--white:#FAFAF8;--green:#4CAF7A;--red:#C94C4C;--border:rgba(201,168,76,0.10);--border-hover:rgba(201,168,76,0.28)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--black);min-height:100vh;font-family:'DM Sans',sans-serif;color:var(--cream);display:flex;align-items:center;justify-content:center;overflow:hidden}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 30% 20%,rgba(201,168,76,0.05) 0%,transparent 50%),radial-gradient(ellipse at 70% 80%,rgba(201,168,76,0.03) 0%,transparent 50%);pointer-events:none}
+body::after{content:'';position:fixed;inset:0;background:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.025'/%3E%3C/svg%3E");pointer-events:none}
+
+.login-container{position:relative;z-index:1;width:100%;max-width:420px;padding:0 24px}
+
+.login-brand{text-align:center;margin-bottom:48px}
+.brand-logo{font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:10px;color:var(--gold);line-height:1}
+.brand-sub{font-size:8px;letter-spacing:4px;color:var(--gray);text-transform:uppercase;margin-top:4px}
+.brand-divider{width:40px;height:1px;background:var(--gold-dim);margin:20px auto 0;opacity:0.4}
+
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px 36px;position:relative;overflow:hidden}
+.login-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent 5%,var(--gold-dim) 25%,var(--gold) 50%,var(--gold-dim) 75%,transparent 95%);opacity:0.5}
+
+.role-toggle{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:28px;overflow:hidden}
+.role-btn{flex:1;padding:12px;text-align:center;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gray-light);cursor:pointer;transition:all 0.2s;border:none;background:transparent;font-family:'DM Sans',sans-serif}
+.role-btn:hover{color:var(--cream)}
+.role-btn.active{background:rgba(201,168,76,0.08);color:var(--gold);border-bottom:2px solid var(--gold)}
+.role-divider{width:1px;background:var(--border)}
+
+.form-group{margin-bottom:20px}
+.form-label{font-size:8px;letter-spacing:2.5px;color:var(--gray);text-transform:uppercase;margin-bottom:7px;display:block}
+.form-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;color:var(--cream);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:border-color 0.2s}
+.form-input:focus{border-color:var(--gold-dim)}
+.form-input::placeholder{color:var(--gray)}
+
+.login-btn{width:100%;padding:14px;background:var(--gold);color:var(--black);border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;font-weight:500;cursor:pointer;transition:all 0.2s;margin-top:8px}
+.login-btn:hover{background:var(--gold-light)}
+.login-btn:disabled{opacity:0.5;cursor:not-allowed}
+
+.login-error{font-size:11px;color:var(--red);text-align:center;margin-top:14px;min-height:18px}
+
+.login-footer{text-align:center;margin-top:32px}
+.login-footer p{font-size:10px;color:var(--gray);line-height:1.6}
+.login-footer a{color:var(--gold-dim);text-decoration:none}
+.login-footer a:hover{color:var(--gold)}
+
+.login-badge{display:inline-block;font-size:7px;letter-spacing:2px;text-transform:uppercase;padding:4px 10px;border-radius:4px;margin-bottom:24px}
+.badge-admin{background:rgba(201,168,76,0.08);color:var(--gold);border:1px solid rgba(201,168,76,0.2)}
+.badge-intern{background:rgba(76,175,122,0.08);color:var(--green);border:1px solid rgba(76,175,122,0.2)}
+</style>
+</head>
+<body>
+
+<div class="login-container">
+  <div class="login-brand">
+    <div class="brand-logo">TORCH</div>
+    <div class="brand-sub">Atlanta — Intern Operations</div>
+    <div class="brand-divider"></div>
+  </div>
+
+  <div class="login-card">
+    <div class="role-toggle">
+      <button class="role-btn active" id="btn-admin" onclick="setRole('admin')">Admin Portal</button>
+      <div class="role-divider"></div>
+      <button class="role-btn" id="btn-intern" onclick="setRole('intern')">Intern Portal</button>
+    </div>
+
+    <div id="role-badge" style="text-align:center">
+      <span class="login-badge badge-admin">Admin Access</span>
+    </div>
+
+    <form id="login-form" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="form-input" type="email" id="login-email" placeholder="you@email.com" required autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input class="form-input" type="password" id="login-password" placeholder="Enter your password" required autocomplete="current-password">
+      </div>
+      <button class="login-btn" type="submit" id="login-btn">Sign In</button>
+      <div class="login-error" id="login-error"></div>
+    </form>
+  </div>
+
+  <div class="login-footer">
+    <p>Torch ATL Intern Operations System<br>Access is restricted to authorized personnel only.</p>
+    <p style="margin-top:12px"><a href="tel:+14048009507">Need help? Call (404) 800-9507</a></p>
+  </div>
+</div>
+
+<script>
+const API_URL = 'https://bookings.torchatl.com';
+let selectedRole = 'admin';
+
+function setRole(role) {
+  selectedRole = role;
+  document.getElementById('btn-admin').classList.toggle('active', role === 'admin');
+  document.getElementById('btn-intern').classList.toggle('active', role === 'intern');
+  document.getElementById('role-badge').innerHTML = role === 'admin'
+    ? '<span class="login-badge badge-admin">Admin Access</span>'
+    : '<span class="login-badge badge-intern">Intern Access</span>';
+  document.getElementById('login-error').textContent = '';
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('login-btn');
+  const errorEl = document.getElementById('login-error');
+  errorEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+
+  try {
+    const res = await fetch(`${API_URL}/api/intern/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      errorEl.textContent = data.error || 'Login failed.';
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+      return;
+    }
+
+    // Check role matches
+    if (selectedRole === 'admin' && data.user.role !== 'admin') {
+      errorEl.textContent = 'This account does not have admin access.';
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+      return;
+    }
+
+    // Store session
+    localStorage.setItem('torch_intern_token', data.token);
+    localStorage.setItem('torch_intern_user', JSON.stringify(data.user));
+
+    // Redirect
+    if (data.user.role === 'admin') {
+      window.location.href = '/interns.html';
+    } else {
+      window.location.href = '/interns.html#intern';
+    }
+
+  } catch (err) {
+    errorEl.textContent = 'Unable to connect. Try again.';
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+  }
+}
+
+// Auto-redirect if already logged in
+const stored = localStorage.getItem('torch_intern_user');
+if (stored) {
+  const user = JSON.parse(stored);
+  if (user.role === 'admin') {
+    window.location.href = '/interns.html';
+  } else {
+    window.location.href = '/interns.html#intern';
+  }
+}
+</script>
+</body>
+</html>
