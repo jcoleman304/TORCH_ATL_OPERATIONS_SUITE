@@ -43,6 +43,14 @@ let adminUsers = [
         role: 'admin',
         accessCode: 'Torch3814!',
         permissions: ['all']
+    },
+    {
+        id: 'admin-002',
+        name: 'Nate Certain',
+        email: 'nate@torchatl.com',
+        role: 'manager',
+        accessCode: 'TorchNate2026',
+        permissions: ['all']
     }
 ];
 let sessionReports = [];
