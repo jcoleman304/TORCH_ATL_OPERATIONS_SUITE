@@ -270,6 +270,8 @@ function switchTab(tabId) {
         loadBookingRequests();
     } else if (tabId === 'dashboard') {
         updateDashboardV2();
+    } else if (tabId === 'daily-log') {
+        DailyLog.load();
     }
 }
 
@@ -4138,12 +4140,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 const BookingRequestsAPI = (() => {
     const BASE = window.BOOKINGS_API_URL || 'https://bookings.torchatl.com';
-    const API_KEY = 'c6589d8b44d6b1ee79168a9ff092959322f0011b3c094d00';
+    // SECURITY: Admin API key removed. Load from ops session or environment config.
+    // TODO: Create scoped booking-management API key on backend, load via ops auth flow
+    const API_KEY = window.__TORCH_OPS_API_KEY || sessionStorage.getItem('torch_ops_api_key') || null;
 
     async function req(path, options = {}) {
+        const key = API_KEY || window.__TORCH_OPS_API_KEY || sessionStorage.getItem('torch_ops_api_key');
+        if (!key) throw new Error('Booking API key not configured. Please log in to the Operations Suite.');
         const headers = {
             'Content-Type': 'application/json',
-            'x-api-key': API_KEY,
+            'x-api-key': key,
             ...options.headers,
         };
         const res = await fetch(`${BASE}${path}`, { ...options, headers });
@@ -4400,6 +4406,163 @@ async function cancelBookingRequest(id) {
         showToast('Failed to cancel: ' + err.message, 'error');
     }
 }
+
+// ============================================
+// DAILY OPERATIONS LOG
+// ============================================
+
+const DailyLog = {
+    API: () => `${window.TORCH_API_URL || 'https://api.torchatl.com/api'}/daily-log`,
+
+    CATEGORY_LABELS: {
+        session: 'Session', guest_access: 'Guest Access', maintenance: 'Maintenance',
+        member_question: 'Member Q', expense: 'Expense', incident: 'Incident', general: 'General'
+    },
+
+    async load() {
+        const saved = localStorage.getItem('torch_dl_user');
+        if (saved) {
+            const select = document.getElementById('dl-logged-by');
+            if ([...select.options].some(o => o.value === saved)) select.value = saved;
+        }
+        await this.loadEntries();
+    },
+
+    async loadEntries() {
+        try {
+            const res = await fetch(this.API());
+            const data = await res.json();
+            const container = document.getElementById('dl-entries');
+            const countEl = document.getElementById('dl-count');
+
+            countEl.textContent = `${data.count || 0} entries`;
+
+            if (!data.logs || data.logs.length === 0) {
+                container.innerHTML = '<p class="empty-state">No entries yet today.</p>';
+                return;
+            }
+
+            container.innerHTML = data.logs.map(log => {
+                const time = new Date(log.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                const catLabel = this.CATEGORY_LABELS[log.category] || log.category;
+                const yellowBadge = log.authority_level === 'yellow' ? '<span class="dl-badge yellow">YELLOW</span>' : '';
+                const followupBadge = log.needs_followup ? '<span class="dl-badge followup">FOLLOW UP</span>' : '';
+                const spent = parseFloat(log.amount_spent) > 0 ? ` &mdash; <strong>$${parseFloat(log.amount_spent).toFixed(2)}</strong>` : '';
+
+                return `<div class="dl-entry ${escapeHTML(log.category)}">
+                    <div class="dl-entry-summary">${escapeHTML(log.summary)}${spent}${yellowBadge}${followupBadge}</div>
+                    <div class="dl-entry-meta">${time} &middot; ${escapeHTML(log.logged_by)} &middot; ${catLabel}</div>
+                </div>`;
+            }).join('');
+        } catch (err) {
+            document.getElementById('dl-entries').innerHTML = '<p class="empty-state" style="color: var(--danger);">Could not load entries.</p>';
+        }
+    },
+
+    async submit(e) {
+        e.preventDefault();
+        const btn = document.getElementById('dl-submit-btn');
+        btn.disabled = true;
+        btn.textContent = 'Logging...';
+
+        const loggedBy = document.getElementById('dl-logged-by').value;
+        localStorage.setItem('torch_dl_user', loggedBy);
+
+        const body = {
+            logged_by: loggedBy,
+            category: document.getElementById('dl-category').value,
+            authority_level: document.getElementById('dl-authority').value,
+            summary: document.getElementById('dl-summary').value,
+            amount_spent: parseFloat(document.getElementById('dl-amount').value) || 0,
+            needs_followup: document.getElementById('dl-followup').checked
+        };
+
+        try {
+            const res = await fetch(this.API(), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            if (!res.ok) throw new Error('Failed to log');
+
+            showToast('Entry logged', 'success');
+            document.getElementById('dl-summary').value = '';
+            document.getElementById('dl-amount').value = '0';
+            document.getElementById('dl-followup').checked = false;
+            document.getElementById('dl-category').value = '';
+            await this.loadEntries();
+        } catch (err) {
+            showToast('Failed to log entry', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Log Entry';
+        }
+    },
+
+    viewReport() {
+        const card = document.getElementById('dl-report-card');
+        const dateInput = document.getElementById('dl-report-date');
+        dateInput.value = new Date().toISOString().slice(0, 10);
+        card.style.display = 'block';
+        this.loadReport();
+    },
+
+    closeReport() {
+        document.getElementById('dl-report-card').style.display = 'none';
+    },
+
+    async loadReport() {
+        const date = document.getElementById('dl-report-date').value;
+        const container = document.getElementById('dl-report-content');
+        container.innerHTML = '<p class="empty-state">Loading report...</p>';
+
+        try {
+            const res = await fetch(`${this.API()}/report?date=${date}`);
+            const data = await res.json();
+
+            if (data.total_entries === 0) {
+                container.innerHTML = '<p class="empty-state">No activity logged for this date.</p>';
+                return;
+            }
+
+            let html = '';
+
+            html += `<div class="dl-report-summary">
+                <div class="dl-report-stat"><div class="num">${data.total_entries}</div><div class="label">Entries</div></div>
+                <div class="dl-report-stat"><div class="num">$${data.total_spent.toFixed(2)}</div><div class="label">Spent</div></div>
+                <div class="dl-report-stat"><div class="num">${data.needs_followup}</div><div class="label">Follow-ups</div></div>
+            </div>`;
+
+            if (data.followups && data.followups.length > 0) {
+                html += `<div class="dl-followup-box"><h4>Needs Attention</h4><ul>`;
+                for (const f of data.followups) {
+                    html += `<li style="margin-bottom: 4px;">[${this.CATEGORY_LABELS[f.category] || f.category}] ${escapeHTML(f.summary)} <span style="color: var(--text-muted);">&mdash; ${escapeHTML(f.logged_by)}</span></li>`;
+                }
+                html += `</ul></div>`;
+            }
+
+            for (const [cat, entries] of Object.entries(data.grouped)) {
+                html += `<div class="dl-report-section"><h4>${this.CATEGORY_LABELS[cat] || cat} (${entries.length})</h4>`;
+                for (const e of entries) {
+                    const time = new Date(e.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                    const spent = parseFloat(e.amount_spent) > 0 ? ` &mdash; <strong>$${parseFloat(e.amount_spent).toFixed(2)}</strong>` : '';
+                    const yellowBadge = e.authority_level === 'yellow' ? '<span class="dl-badge yellow">YELLOW</span>' : '';
+                    const followupBadge = e.needs_followup ? '<span class="dl-badge followup">FOLLOW UP</span>' : '';
+                    html += `<div class="dl-entry ${escapeHTML(e.category)}">
+                        <div class="dl-entry-summary">${escapeHTML(e.summary)}${spent}${yellowBadge}${followupBadge}</div>
+                        <div class="dl-entry-meta">${time} &middot; ${escapeHTML(e.logged_by)}</div>
+                    </div>`;
+                }
+                html += `</div>`;
+            }
+
+            container.innerHTML = html;
+        } catch (err) {
+            container.innerHTML = '<p class="empty-state" style="color: var(--danger);">Failed to load report.</p>';
+        }
+    }
+};
 
 function showToast(message, type = 'info') {
     // Use existing toast if available, otherwise alert

@@ -1771,9 +1771,12 @@ buildCal('internShiftCal', [2,7,9,14,21,23,28,30]);
 // ════════════════════════════════════════════════
 
 const INTERN_API = 'https://bookings.torchatl.com';
-const INTERN_KEY = 'c6589d8b44d6b1ee79168a9ff092959322f0011b3c094d00';
+// SECURITY: Admin API key removed. Load from ops session or environment config.
+// TODO: Create scoped intern-management API key on backend, load via ops auth flow
+const INTERN_KEY = window.__TORCH_OPS_API_KEY || sessionStorage.getItem('torch_ops_api_key') || null;
 
 async function apiCall(path, options = {}) {
+  if (!INTERN_KEY) { alert('API key not configured. Please log in to the Operations Suite first.'); throw new Error('API key not configured'); }
   const headers = { 'Content-Type': 'application/json', 'x-api-key': INTERN_KEY, ...options.headers };
   const res = await fetch(`${INTERN_API}${path}`, { ...options, headers });
   const data = await res.json();

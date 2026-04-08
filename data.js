@@ -35,13 +35,16 @@ let smsHistory = [];
 let emailHistory = { sent: [], scheduled: [], drafts: [] };
 let activityFeed = [];
 let engineers = [];
+// SECURITY: Plaintext access codes removed. Auth must be validated server-side.
+// TODO: Implement backend auth endpoint (POST /api/ops/login) that returns a session token.
+// Previous access codes are COMPROMISED (were committed to public repo) and must be rotated.
 let adminUsers = [
     {
         id: 'admin-001',
         name: 'Joi Coleman',
         email: 'joi.coleman@torchatl.com',
         role: 'admin',
-        accessCode: 'Torch3814!',
+        accessCode: null, // validated server-side only
         permissions: ['all']
     },
     {
@@ -49,7 +52,7 @@ let adminUsers = [
         name: 'Nate Certain',
         email: 'nate@torchatl.com',
         role: 'manager',
-        accessCode: 'TorchNate2026',
+        accessCode: null, // validated server-side only
         permissions: ['all']
     }
 ];
