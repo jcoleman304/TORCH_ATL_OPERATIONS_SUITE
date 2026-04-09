@@ -70,6 +70,10 @@
                 <span class="icon">🔧</span>
                 <span>Operations</span>
             </li>
+            <li data-tab="daily-log">
+                <span class="icon">📝</span>
+                <span>Daily Log</span>
+            </li>
 
             <li class="nav-section admin-only">CLIENT CRM</li>
             <li class="admin-only" data-tab="clients">
@@ -125,6 +129,10 @@
             <li class="admin-only" data-tab="reports-review">
                 <span class="icon">📋</span>
                 <span>Session Reports</span>
+            </li>
+            <li class="admin-only" data-tab="security">
+                <span class="icon">🔒</span>
+                <span>Security</span>
             </li>
             <li class="admin-only" data-tab="settings">
                 <span class="icon">⚙️</span>
@@ -1429,6 +1437,72 @@
             </div>
         </section>
 
+        <!-- Security Tab -->
+        <section id="security" class="tab-content admin-only">
+            <header class="page-header">
+                <h2>Security &amp; Access Management</h2>
+                <p>Manage access codes for all users. Codes are bcrypt-hashed — only you set the new code.</p>
+            </header>
+
+            <div class="security-panel">
+                <!-- Admin Users -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Admin Users</h3>
+                    </div>
+                    <div id="security-admins" class="security-list">
+                        <p class="loading-msg">Loading admin users...</p>
+                    </div>
+                </div>
+
+                <!-- Members -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Members</h3>
+                    </div>
+                    <div id="security-members" class="security-list">
+                        <p class="loading-msg">Loading members...</p>
+                    </div>
+                </div>
+
+                <!-- Engineers -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Engineers</h3>
+                    </div>
+                    <div id="security-engineers" class="security-list">
+                        <p class="loading-msg">Loading engineers...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reset Code Modal -->
+            <div id="reset-code-modal" class="modal" style="display:none;">
+                <div class="modal-content" style="max-width:420px;">
+                    <div class="modal-header">
+                        <h3 id="reset-modal-title">Reset Access Code</h3>
+                        <button onclick="closeResetModal()" class="close-btn">&times;</button>
+                    </div>
+                    <form onsubmit="submitCodeReset(event)">
+                        <div class="form-group">
+                            <label>New Access Code</label>
+                            <input type="password" id="reset-new-code" placeholder="Min 6 characters" required minlength="6" autocomplete="new-password">
+                        </div>
+                        <div class="form-group">
+                            <label>Confirm Access Code</label>
+                            <input type="password" id="reset-confirm-code" placeholder="Re-enter code" required minlength="6" autocomplete="new-password">
+                        </div>
+                        <input type="hidden" id="reset-user-id">
+                        <input type="hidden" id="reset-user-type">
+                        <div class="form-actions">
+                            <button type="button" onclick="closeResetModal()" class="btn secondary">Cancel</button>
+                            <button type="submit" class="btn primary">Update Code</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+
         <!-- Settings Tab -->
         <section id="settings" class="tab-content admin-only">
             <header class="page-header">
@@ -1595,6 +1669,98 @@
                             <span class="agent-status pending">Pending</span>
                         </div>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Daily Log Tab -->
+        <section id="daily-log" class="tab-content">
+            <header class="page-header">
+                <h2>Daily Operations Log</h2>
+                <div class="page-actions">
+                    <button class="btn secondary small" onclick="DailyLog.viewReport()">View Report</button>
+                </div>
+            </header>
+
+            <div class="daily-log-layout">
+                <!-- Log Entry Form -->
+                <div class="card daily-log-form-card">
+                    <h3>Log an Activity</h3>
+                    <form id="daily-log-form" onsubmit="DailyLog.submit(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Logged By</label>
+                                <select id="dl-logged-by" required>
+                                    <option value="">Select person</option>
+                                    <option value="Nate">Nate</option>
+                                    <option value="Bruce">Bruce</option>
+                                    <option value="Bab">Bab</option>
+                                    <option value="Kuda">Kuda</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Category</label>
+                                <select id="dl-category" required>
+                                    <option value="">Select category</option>
+                                    <option value="session">Session</option>
+                                    <option value="guest_access">Guest Access</option>
+                                    <option value="maintenance">Maintenance / Repair</option>
+                                    <option value="member_question">Member Question</option>
+                                    <option value="expense">Expense / Purchase</option>
+                                    <option value="incident">Incident</option>
+                                    <option value="general">General</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Authority Level</label>
+                                <select id="dl-authority">
+                                    <option value="green">Green — Handled it</option>
+                                    <option value="yellow">Yellow — Handled, notifying Joi</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Amount Spent ($)</label>
+                                <input type="number" id="dl-amount" placeholder="0.00" step="0.01" min="0" value="0">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>What happened?</label>
+                            <textarea id="dl-summary" rows="3" placeholder="Be specific: who, what, when, outcome" required></textarea>
+                        </div>
+                        <div class="form-row" style="align-items: center; gap: 20px;">
+                            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="dl-followup">
+                                <span>Needs follow-up from Joi</span>
+                            </label>
+                            <button type="submit" class="btn primary" id="dl-submit-btn">Log Entry</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Today's Entries -->
+                <div class="card daily-log-entries-card">
+                    <div class="card-header-row">
+                        <h3>Today's Log</h3>
+                        <span class="entry-count" id="dl-count">0 entries</span>
+                    </div>
+                    <div id="dl-entries" class="daily-log-entries">
+                        <p class="empty-state">Loading...</p>
+                    </div>
+                </div>
+
+                <!-- Report Viewer (hidden by default) -->
+                <div class="card daily-log-report-card" id="dl-report-card" style="display: none;">
+                    <div class="card-header-row">
+                        <h3>Daily Report</h3>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="date" id="dl-report-date" class="date-input">
+                            <button class="btn secondary small" onclick="DailyLog.loadReport()">Load</button>
+                            <button class="btn secondary small" onclick="DailyLog.closeReport()">Close</button>
+                        </div>
+                    </div>
+                    <div id="dl-report-content"></div>
                 </div>
             </div>
         </section>

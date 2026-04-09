@@ -272,6 +272,8 @@ function switchTab(tabId) {
         updateDashboardV2();
     } else if (tabId === 'daily-log') {
         DailyLog.load();
+    } else if (tabId === 'security') {
+        loadSecurityPanel();
     }
 }
 
@@ -4574,5 +4576,140 @@ function showToast(message, type = 'info') {
         toast.textContent = message;
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 4000);
+    }
+}
+
+// ============================================================
+// SECURITY PANEL — Access Code Management
+// ============================================================
+
+async function loadSecurityPanel() {
+    const BASE = window.TORCH_API_URL || 'https://api.torchatl.com/api';
+    const token = localStorage.getItem('torch_api_token');
+
+    if (!token) {
+        document.getElementById('security-admins').innerHTML = '<p class="error-msg">Not authenticated. Please log in again.</p>';
+        return;
+    }
+
+    const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    // Load all three user types in parallel
+    const [adminsRes, membersRes, engineersRes] = await Promise.allSettled([
+        fetch(`${BASE}/admin/users`, { headers }).then(r => r.ok ? r.json() : []),
+        fetch(`${BASE}/admin/members`, { headers }).then(r => r.ok ? r.json() : []),
+        fetch(`${BASE}/admin/engineers`, { headers }).then(r => r.ok ? r.json() : []),
+    ]);
+
+    const admins = adminsRes.status === 'fulfilled' ? adminsRes.value : [];
+    const members = membersRes.status === 'fulfilled' ? membersRes.value : [];
+    const engineers = engineersRes.status === 'fulfilled' ? engineersRes.value : [];
+
+    // Render admin users
+    document.getElementById('security-admins').innerHTML = admins.length ? admins.map(a => `
+        <div class="security-row">
+            <div class="security-user">
+                <strong>${a.name || 'Unknown'}</strong>
+                <span>${a.email}</span>
+                <span class="badge ${a.active ? 'badge-success' : 'badge-danger'}">${a.role}${a.active ? '' : ' (inactive)'}</span>
+            </div>
+            <div class="security-actions">
+                <span class="security-meta">${a.last_login ? 'Last login: ' + new Date(a.last_login).toLocaleDateString() : 'Never logged in'}</span>
+                <button class="btn small primary" onclick="openResetModal('${a.id}', 'admin', '${(a.name || '').replace(/'/g, "\\'")}')">Reset Code</button>
+            </div>
+        </div>
+    `).join('') : '<p class="empty-msg">No admin users found. The /api/admin/users endpoint may need deployment.</p>';
+
+    // Render members
+    document.getElementById('security-members').innerHTML = members.length ? members.map(m => `
+        <div class="security-row">
+            <div class="security-user">
+                <strong>${m.name || 'Unknown'}</strong>
+                <span>${m.email}</span>
+                <span class="badge">${m.tier || 'Member'}${m.status !== 'active' ? ' (' + m.status + ')' : ''}</span>
+            </div>
+            <div class="security-actions">
+                <button class="btn small primary" onclick="openResetModal('${m.id}', 'member', '${(m.name || '').replace(/'/g, "\\'")}')">Reset Code</button>
+            </div>
+        </div>
+    `).join('') : '<p class="empty-msg">No members found.</p>';
+
+    // Render engineers
+    document.getElementById('security-engineers').innerHTML = engineers.length ? engineers.map(e => `
+        <div class="security-row">
+            <div class="security-user">
+                <strong>${e.name || 'Unknown'}</strong>
+                <span>${e.email}</span>
+                <span class="badge">${e.role || 'Engineer'}</span>
+            </div>
+            <div class="security-actions">
+                <button class="btn small primary" onclick="openResetModal('${e.id}', 'engineer', '${(e.name || '').replace(/'/g, "\\'")}')">Reset Code</button>
+            </div>
+        </div>
+    `).join('') : '<p class="empty-msg">No engineers found.</p>';
+}
+
+function openResetModal(userId, userType, userName) {
+    document.getElementById('reset-modal-title').textContent = `Reset Access Code — ${userName}`;
+    document.getElementById('reset-user-id').value = userId;
+    document.getElementById('reset-user-type').value = userType;
+    document.getElementById('reset-new-code').value = '';
+    document.getElementById('reset-confirm-code').value = '';
+    document.getElementById('reset-code-modal').style.display = 'flex';
+}
+
+function closeResetModal() {
+    document.getElementById('reset-code-modal').style.display = 'none';
+}
+
+async function submitCodeReset(event) {
+    event.preventDefault();
+
+    const userId = document.getElementById('reset-user-id').value;
+    const userType = document.getElementById('reset-user-type').value;
+    const newCode = document.getElementById('reset-new-code').value;
+    const confirmCode = document.getElementById('reset-confirm-code').value;
+
+    if (newCode !== confirmCode) {
+        alert('Access codes do not match.');
+        return;
+    }
+
+    if (userType === 'admin' && newCode.length < 8) {
+        alert('Admin access codes must be at least 8 characters.');
+        return;
+    }
+
+    if (newCode.length < 6) {
+        alert('Access codes must be at least 6 characters.');
+        return;
+    }
+
+    const BASE = window.TORCH_API_URL || 'https://api.torchatl.com/api';
+    const token = localStorage.getItem('torch_api_token');
+
+    const endpoints = {
+        admin: `/admin/users/${userId}/reset-code`,
+        member: `/admin/members/${userId}/reset-code`,
+        engineer: `/admin/engineers/${userId}/reset-code`,
+    };
+
+    try {
+        const res = await fetch(`${BASE}${endpoints[userType]}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accessCode: newCode }),
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: 'Request failed' }));
+            alert(`Error: ${err.error || 'Failed to reset code'}`);
+            return;
+        }
+
+        closeResetModal();
+        alert('Access code updated successfully.');
+    } catch (e) {
+        alert(`Network error: ${e.message}`);
     }
 }
